@@ -3,11 +3,12 @@ import { marcas as calcularMarcas } from './mapaBuilder.js';
 
 const CELDA = 20; // px por celda en el canvas
 
-// Mismos colores que el playground de resources/views/welcome.blade.php
 const COLOR_MARCA = {
     entrada: 'green',
-    salida: 'red',
-    puerta: 'gold',
+    salidaCerrada: 'green',
+    salidaAbierta: 'blue',
+    puertaCerrada: 'gold',
+    puertaAbierta: 'deepskyblue',
     llave: 'orange',
 };
 
@@ -27,21 +28,38 @@ const TECLAS = {
  * Estado de la partida en el cliente. Regenera el laberinto desde el seed
  * que manda el servidor (window.__MAZE__) y lo mantiene en memoria — nunca
  * viaja por la red. Ver CLAUDE.md, axioma 1 y 3.
+ *
+ * Cada llave abre la puerta de su mismo índice (llave 0 → puerta 0, etc.);
+ * la última llave, la que sobra, abre la salida. La salida arranca cerrada
+ * (no se puede entrar) y se abre al recoger esa llave.
  */
 export function game() {
     return {
+        token: null,
+        seed: null,
         matriz: null,
         marcas: null,
         ancho: 0,
         alto: 0,
+        alturaPx: 0,
         mago: { x: 0, y: 0 },
+        puertasAbiertas: [],
+        llavesRecogidas: [],
+        salidaAbierta: false,
+        terminado: false,
+        movimientos: [],
 
         init() {
-            const { seed, ancho, alto } = window.__MAZE__;
+            const { seed, ancho, alto, token } = window.__MAZE__;
+            this.token = token;
+            this.seed = seed;
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.ancho = ancho;
             this.alto = alto;
+            this.alturaPx = alto * CELDA;
+            this.puertasAbiertas = this.marcas.puertas.map(() => false);
+            this.llavesRecogidas = this.marcas.llaves.map(() => false);
             this.$nextTick(() => this.dibujar());
         },
 
@@ -83,8 +101,6 @@ export function game() {
             ctx.fill();
         },
 
-        // Sin función de juego asignada todavía — solo referencia visual
-        // para saber a dónde llevar al mago.
         dibujarMarcas(ctx) {
             const pintar = ({ x, y }, color) => {
                 ctx.fillStyle = color;
@@ -92,12 +108,32 @@ export function game() {
             };
 
             pintar(this.marcas.entrada, COLOR_MARCA.entrada);
-            pintar(this.marcas.salida, COLOR_MARCA.salida);
-            this.marcas.puertas.forEach((p) => pintar(p, COLOR_MARCA.puerta));
-            this.marcas.llaves.forEach((l) => pintar(l, COLOR_MARCA.llave));
+            pintar(this.marcas.salida, this.salidaAbierta ? COLOR_MARCA.salidaAbierta : COLOR_MARCA.salidaCerrada);
+
+            this.marcas.puertas.forEach((p, i) => {
+                pintar(p, this.puertasAbiertas[i] ? COLOR_MARCA.puertaAbierta : COLOR_MARCA.puertaCerrada);
+            });
+
+            this.marcas.llaves.forEach((l, i) => {
+                if (!this.llavesRecogidas[i]) pintar(l, COLOR_MARCA.llave);
+            });
+        },
+
+        buscarPuerta(x, y) {
+            return this.marcas.puertas.findIndex((p) => p.x === x && p.y === y);
+        },
+
+        buscarLlave(x, y) {
+            return this.marcas.llaves.findIndex((l) => l.x === x && l.y === y);
+        },
+
+        esSalida(x, y) {
+            return this.marcas.salida.x === x && this.marcas.salida.y === y;
         },
 
         mover(evento) {
+            if (this.terminado) return;
+
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
             evento.preventDefault();
@@ -105,9 +141,50 @@ export function game() {
             const celda = this.matriz[this.mago.y][this.mago.x];
             if (celda[direccion.nombre]) return; // pared cerrada
 
-            this.mago.x += direccion.dx;
-            this.mago.y += direccion.dy;
+            const nx = this.mago.x + direccion.dx;
+            const ny = this.mago.y + direccion.dy;
+
+            const idxPuerta = this.buscarPuerta(nx, ny);
+            if (idxPuerta !== -1 && !this.puertasAbiertas[idxPuerta]) return; // puerta cerrada
+
+            if (this.esSalida(nx, ny) && !this.salidaAbierta) return; // salida cerrada
+
+            this.mago.x = nx;
+            this.mago.y = ny;
+            this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
+
+            const idxLlave = this.buscarLlave(nx, ny);
+            if (idxLlave !== -1 && !this.llavesRecogidas[idxLlave]) {
+                this.llavesRecogidas[idxLlave] = true;
+                if (idxLlave < this.puertasAbiertas.length) {
+                    this.puertasAbiertas[idxLlave] = true; // llave de puerta
+                } else {
+                    this.salidaAbierta = true; // llave que sobra: abre la salida
+                }
+            }
+
+            if (this.esSalida(nx, ny)) {
+                this.finalizar();
+            }
+
             this.dibujar();
+        },
+
+        finalizar() {
+            this.terminado = true;
+            this.movimientos.push({ dir: 'finalizado', x: this.mago.x, y: this.mago.y });
+            this.enviarSalida();
+        },
+
+        async enviarSalida() {
+            await fetch(`/jugar/${this.token}/salir`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ x: this.mago.x, y: this.mago.y }),
+            });
         },
     };
 }

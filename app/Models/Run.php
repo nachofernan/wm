@@ -1,0 +1,31 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+/**
+ * Proyección (cache) del estado de una partida. La fuente de verdad son los
+ * eventos (Event); esta fila existe para no rehacer el replay en cada
+ * request. Ver CLAUDE.md, axioma 6.
+ */
+class Run extends Model
+{
+    protected $fillable = [
+        'token',
+        'seed',
+        'ancho',
+        'alto',
+        'terminado',
+    ];
+
+    protected $casts = [
+        'terminado' => 'boolean',
+    ];
+
+    public function events(): HasMany
+    {
+        return $this->hasMany(Event::class);
+    }
+}

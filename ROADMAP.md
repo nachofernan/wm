@@ -39,12 +39,14 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 
 ## Fase 3 — Estado de partida y eventos
 
-- [ ] Migración `runs` (proyección del estado) y `events` (log append-only)
-- [ ] Modelos `Run` y `Event`
-- [ ] Derivar estado desde el replay de eventos
-- [ ] Endpoints de eventos: abrir cofre, combate, hechizo, salir
-- [ ] Validación de legalidad en el servidor (¿podía estar ahí?, ¿la celda tiene eso?)
-- [ ] Tests de endpoints contra intentos ilegales, no solo el camino feliz
+- [x] Migración `runs` (proyección del estado) y `events` (log append-only)
+- [x] Modelos `Run` y `Event`
+- [ ] Derivar estado desde el replay de eventos (hoy `salir` actualiza la
+      proyección directo; falta generalizar cuando haya más de un evento)
+- [~] Endpoints de eventos: `salir` — abrir cofre, combate y hechizo esperan
+      a que cierre la economía del talismán (Fase 4)
+- [x] Validación de legalidad en el servidor para `salir` (posición vs. seed)
+- [x] Tests de endpoints contra intentos ilegales, no solo el camino feliz
 
 ## Fase 4 — El juego como juego
 
