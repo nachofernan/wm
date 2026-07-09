@@ -1,5 +1,6 @@
 <?php
 
+use App\Game\MapaBuilder;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -7,9 +8,13 @@ Route::get('/', function () {
 });
 
 Route::get('/jugar', function () {
+    $ancho = 30;
+    $alto = 30;
+    $resultado = MapaBuilder::buscarSeed($ancho, $alto);
+
     return view('jugar', [
-        'seed' => random_int(1, PHP_INT_MAX),
-        'ancho' => 30,
-        'alto' => 30,
+        'seed' => $resultado['seed'],
+        'ancho' => $ancho,
+        'alto' => $alto,
     ]);
 });

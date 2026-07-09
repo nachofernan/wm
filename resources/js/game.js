@@ -1,6 +1,15 @@
 import { generarLaberinto } from './maze.js';
+import { marcas as calcularMarcas } from './mapaBuilder.js';
 
 const CELDA = 20; // px por celda en el canvas
+
+// Mismos colores que el playground de resources/views/welcome.blade.php
+const COLOR_MARCA = {
+    entrada: 'green',
+    salida: 'red',
+    puerta: 'gold',
+    llave: 'orange',
+};
 
 // Mismo mapeo de direcciones que el generador — docs/PROTOCOLO_GENERADOR.md §3.1
 const TECLAS = {
@@ -22,6 +31,7 @@ const TECLAS = {
 export function game() {
     return {
         matriz: null,
+        marcas: null,
         ancho: 0,
         alto: 0,
         mago: { x: 0, y: 0 },
@@ -29,6 +39,7 @@ export function game() {
         init() {
             const { seed, ancho, alto } = window.__MAZE__;
             this.matriz = generarLaberinto(seed, ancho, alto);
+            this.marcas = calcularMarcas(this.matriz);
             this.ancho = ancho;
             this.alto = alto;
             this.$nextTick(() => this.dibujar());
@@ -41,6 +52,9 @@ export function game() {
 
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            this.dibujarMarcas(ctx);
+
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 2;
 
@@ -67,6 +81,20 @@ export function game() {
                 Math.PI * 2
             );
             ctx.fill();
+        },
+
+        // Sin función de juego asignada todavía — solo referencia visual
+        // para saber a dónde llevar al mago.
+        dibujarMarcas(ctx) {
+            const pintar = ({ x, y }, color) => {
+                ctx.fillStyle = color;
+                ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
+            };
+
+            pintar(this.marcas.entrada, COLOR_MARCA.entrada);
+            pintar(this.marcas.salida, COLOR_MARCA.salida);
+            this.marcas.puertas.forEach((p) => pintar(p, COLOR_MARCA.puerta));
+            this.marcas.llaves.forEach((l) => pintar(l, COLOR_MARCA.llave));
         },
 
         mover(evento) {
