@@ -20,9 +20,9 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` cerrado.
 
 Nada de lo de abajo empieza hasta que esto esté en verde.
 
-- [ ] `app/Game/Prng.php` — PRNG determinista, según el protocolo
-- [ ] `resources/js/prng.js` — espejo exacto del anterior
-- [ ] Test unitario del PRNG: misma secuencia desde el mismo seed, en ambos lenguajes
+- [x] `app/Game/Prng.php` — PRNG determinista, según el protocolo
+- [x] `resources/js/prng.js` — espejo exacto del anterior
+- [x] Test unitario del PRNG: misma secuencia desde el mismo seed, en ambos lenguajes
 - [ ] `app/Game/MazeGenerator.php` — backtracking recursivo desde un seed
 - [ ] `resources/js/maze.js` — espejo exacto
 - [ ] **Test de paridad**: mismo seed → mismo hash de laberinto en PHP y JS, sobre un set
