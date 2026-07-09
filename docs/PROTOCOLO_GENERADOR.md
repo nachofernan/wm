@@ -138,8 +138,11 @@ serialización canónica antes de hashear:
 
 1. Recorrer las celdas en orden **fila por fila** (`y` de 0 a H-1, `x` de 0 a W-1).
 2. Por celda, emitir 4 bits: pared N, E, S, O (1 = cerrada, 0 = abierta), en ese orden.
-3. Concatenar en un stream de bytes y hashear con **SHA-256** (existe idéntico en PHP y JS).
-4. Comparar los hashes hex. Iguales ⇒ paridad.
+3. **Empaquetado:** cada celda ocupa **1 byte completo** (no se comparten bits entre
+   celdas): `byte = (N << 3) | (E << 2) | (S << 1) | O`.
+4. Concatenar los bytes de todas las celdas y hashear con **SHA-256** (existe idéntico en
+   PHP y JS).
+5. Comparar los hashes hex. Iguales ⇒ paridad.
 
 Los **seeds de test son fijos y están commiteados** (nunca aleatorios). El vector de test
 vive junto a los tests, no acá.

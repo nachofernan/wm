@@ -90,3 +90,17 @@ empezar con el protocolo abierto.
 **Se descartó:** `randBelow` con rechazo (más correcto estadísticamente pero innecesario acá);
 fijar ya el set de seeds de test (se pidió mantenerlos junto al test, no en este doc, y
 todavía no existe el test).
+
+## 009 — Generador de laberinto: empaquetado del hash y seeds de test — 2026-07-09
+**Decisión:** `app/Game/MazeGenerator.php` y `resources/js/maze.js` implementan el
+backtracking iterativo del protocolo, con `Prng`/`prng.js` como única fuente de
+aleatoriedad. Se cierra el único punto que el protocolo dejaba sin especificar del §6: el
+empaquetado de bits en bytes para el hash. Cada celda ocupa **1 byte completo**
+(`(N<<3)|(E<<2)|(S<<1)|O`), sin compartir bits entre celdas. Seeds de test fijos
+(commiteados en `tests/Unit/Game/MazeGeneratorTest.php` y `resources/js/maze.test.js`):
+`(1,10,10)`, `(42,10,10)`, `(12345,20,15)`, `(7,100,100)` — el último al tamaño canónico.
+**Por qué:** Empaquetar 2 celdas por byte ahorra espacio pero agrega una decisión más
+(orden de nibbles, celda impar al final) sin beneficio real para un hash de test. 1 byte
+por celda es inequívoco. El tamaño no cuadrado (20x15) y el tamaño canónico (100x100)
+están incluidos para no depender solo de grids chicos y cuadrados.
+**Se descartó:** Empaquetar múltiples celdas por byte.

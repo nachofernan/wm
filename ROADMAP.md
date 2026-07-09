@@ -23,9 +23,9 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 - [x] `app/Game/Prng.php` — PRNG determinista, según el protocolo
 - [x] `resources/js/prng.js` — espejo exacto del anterior
 - [x] Test unitario del PRNG: misma secuencia desde el mismo seed, en ambos lenguajes
-- [ ] `app/Game/MazeGenerator.php` — backtracking recursivo desde un seed
-- [ ] `resources/js/maze.js` — espejo exacto
-- [ ] **Test de paridad**: mismo seed → mismo hash de laberinto en PHP y JS, sobre un set
+- [x] `app/Game/MazeGenerator.php` — backtracking recursivo desde un seed
+- [x] `resources/js/maze.js` — espejo exacto
+- [x] **Test de paridad**: mismo seed → mismo hash de laberinto en PHP y JS, sobre un set
       de seeds fijos y commiteados. El test más importante del repo.
 - [ ] Comando Artisan para volcar el hash de un seed offline (herramienta de validación)
 
