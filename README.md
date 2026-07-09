@@ -1,59 +1,124 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Wizard's Maze
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Roguelike de laberinto, single player, por turnos, jugable en el navegador.
 
-## About Laravel
+Un mago entra a un laberinto que no conoce. Ve pocas celdas a la redonda. Adentro hay
+cofres, monstruos, gemas, una llave y una salida. El talismán que lleva encima tiene
+cuatro gemas elementales, y la combinación de sus niveles define de qué es capaz: cuánto
+ve, cuánto aguanta, qué hechizos puede lanzar.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+El talismán es también lo que gasta. Cada hechizo consume nivel de gema. Ver más lejos
+cuesta. Bajar más adentro cuesta. El laberinto no se gana llegando a la salida: se gana
+saliendo con algo, y decidir cuánto laberinto se puede pagar es el juego entero.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+> **Estado: fase de diseño. No hay código todavía.**
+> Lo que está definido es la arquitectura. La mecánica se está discutiendo.
+> Ver `CLAUDE.md` para las reglas del proyecto y `docs/DISENO.md` para el diseño vivo.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## De dónde viene
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Existió una primera versión, hace años, escrita mientras se aprendía POO. Generaba el
+laberinto con backtracking recursivo sobre una matriz bidimensional, tenía el talismán de
+cuatro gemas, los monstruos, los cofres y la llave. Funcionaba, y era hermosa.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Se abandonó por una razón que no tenía nada que ver con el juego: **persistía la matriz**.
+Un mapa de 100x100 son diez mil objetos-celda que había que cargar, serializar y devolver
+en cada movimiento. Sin AJAX, eso era una recarga de página completa por cada paso. Con
+AJAX, era el mismo peso viajando por la red cada 200 milisegundos. Se optimizó mandando
+solo el borde visible, y aun así el problema de fondo seguía ahí.
 
-## Laravel Sponsors
+Esta versión arranca desde la corrección de ese error.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## La idea que lo cambia todo
 
-### Premium Partners
+Un laberinto generado por un algoritmo determinista **no es un dato: es una función**.
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+```
+seed → algoritmo → el mismo laberinto, siempre
+```
 
-## Contributing
+No hay que guardar diez mil celdas. Hay que guardar un entero.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+De ahí sale toda la arquitectura:
 
-## Code of Conduct
+- El cliente recibe el seed, regenera el laberinto **una sola vez** al cargar, y lo mantiene
+  en memoria. El movimiento nunca toca el servidor.
+- Al servidor solo suben los eventos que importan: abrir un cofre, entablar combate, lanzar
+  un hechizo, salir.
+- El servidor regenera el laberinto desde el mismo seed, valida que el evento sea legal
+  (¿podía estar ahí?, ¿esa celda tiene un cofre?) y resuelve el resultado. El cliente nunca
+  decide nada que importe.
+- Una partida guardada son unos cientos de bytes: seed, posición, talismán, HP, y los sets
+  de cosas ya consumidas.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+El precio de esto es que **el generador tiene que existir dos veces** —en PHP y en
+JavaScript— y producir exactamente el mismo laberinto. Bit a bit. Con un PRNG propio,
+implementado igual en los dos lenguajes. Esa paridad es el corazón del proyecto y tiene su
+propio test, que es el test más importante del repositorio.
 
-## Security Vulnerabilities
+## Stack
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+| Capa | Elección | Por qué |
+|---|---|---|
+| Backend | Laravel 12 | Migraciones, Eloquent, Pest, comandos Artisan para validar seeds offline |
+| Frontend | Alpine.js + `fetch` | El estado del juego vive en el cliente; el servidor solo arbitra |
+| Render | `<canvas>` | Un grid de 100x100 en DOM no es viable |
+| Estilos | Tailwind | — |
+| DB | SQLite (dev) | Suficiente. La decisión de producción no hace falta todavía |
+| Tests | Pest + Vitest | Vitest existe solo para el lado JS del test de paridad |
 
-## License
+**Sin Livewire.** Livewire renderiza componentes en el servidor y difunde DOM. Es, con mejor
+ropa, exactamente el problema que hundió la versión anterior. Esta decisión está cerrada.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**Sin autenticación.** Una partida se identifica con un token opaco en la URL. Cuando haga
+falta login, se agrega.
+
+## Estructura prevista
+
+```
+app/
+  Game/                  Lógica pura: sin HTTP, sin DB, testeable sola
+    Prng.php             PRNG determinista
+    MazeGenerator.php    Backtracking recursivo desde un seed
+    Talisman.php         Economía de gemas
+    Rules.php            Combate, visión, costos
+  Http/Controllers/      Endpoints delgados: validan y delegan
+  Models/
+    Run.php              Proyección del estado de partida
+    Event.php            Log append-only, fuente de verdad
+
+resources/js/
+  maze.js                Puerto en JS del generador. Espejo de app/Game/
+  prng.js                Puerto en JS del PRNG. Espejo de app/Game/Prng.php
+  game.js                Estado del cliente, input, render sobre canvas
+
+docs/
+  DISENO.md              Diseño vivo del juego. Manda sobre el código
+  DECISIONES.md          Bitácora append-only de decisiones y descartes
+  PROTOCOLO_GENERADOR.md Spec del PRNG y del algoritmo, agnóstico de lenguaje
+```
+
+## Setup
+
+Todavía no hay nada que levantar. Cuando lo haya, va acá.
+
+## Orden de trabajo
+
+**El generador y su test de paridad vienen antes que cualquier pixel.** Si un mismo seed no
+produce el mismo laberinto en PHP y en JS, todo lo demás es humo. Recién con eso en verde
+tiene sentido dibujar algo.
+
+Ver `ROADMAP.md`.
+
+## Lo que falta decidir
+
+Está anotado en `CLAUDE.md` y se discute antes de codearse:
+
+- Qué habilidad del jugador mide el juego.
+- La economía exacta del talismán.
+- La ficción. Tentativamente arcana, por herencia. No cerrada.
+- El comportamiento de los monstruos. Un monstruo que persigue con A* convierte esto en un
+  juego de reflejos, que es justo lo que un juego por turnos no puede dar. Probablemente
+  sean estáticos, telegrafiados, o se muevan solo cuando el jugador se mueve.
