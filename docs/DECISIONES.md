@@ -104,3 +104,79 @@ empaquetado de bits en bytes para el hash. Cada celda ocupa **1 byte completo**
 por celda es inequívoco. El tamaño no cuadrado (20x15) y el tamaño canónico (100x100)
 están incluidos para no depender solo de grids chicos y cuadrados.
 **Se descartó:** Empaquetar múltiples celdas por byte.
+
+## 010 — Vida y poder del PJ: dos pools acoplados por umbral — 2026-07-09
+**Decisión:** El PJ tiene dos stats separados, cada uno con actual/máximo: **vida** y
+**poder**.
+- El poder es el agregado de los niveles de las cuatro gemas del talismán; de ahí salen la
+  visión y los hechizos.
+- La vida es un stat propio del PJ, no del talismán.
+- Acoplamiento por umbral: mientras el poder es mayor a 0, la vida no se toca. Al llegar a
+  poder 0, gastar de más (o permanecer en poder 0) empieza a drenar vida directamente.
+- Vida en 0 = derrota. Poder en 0 impide atacar; qué significa "atacar" y cómo se resuelve
+  el combate se decide junto con el diseño de los PNJs/monstruos, todavía sin empezar.
+- Los números concretos (cuánto poder da cada nivel de gema, cuánto drena el turno en
+  poder 0, ritmo de recuperación) quedan sin cerrar a propósito: se ajustan jugando, no
+  de antemano.
+
+**Por qué:** Reemplaza la hipótesis de "un solo pool" (talismán = vida y poder al mismo
+tiempo) por dos recursos acoplados: el talismán sigue siendo la fuente de poder (y por lo
+tanto de riesgo — ver más cuesta, lanzar hechizos cuesta), pero la vida no desaparece con
+el talismán vacío; se drena progresivamente después, dando margen para retirarse sin morir
+instantáneamente al agotar las gemas.
+**Se descartó:** Un solo pool talismán=vida=poder (la hipótesis original de DISENO.md §3);
+conversión directa sin umbral (cualquier sobregasto de poder se paga en vida sin un punto
+de quiebre) — se prefirió el umbral porque separa con claridad "estás gastado" (poder 0) de
+"estás muriendo" (perdiendo vida).
+
+## 011 — Economía del talismán: loadout con cap, gemas que se gastan, secuencia de mazes — 2026-07-09
+**Decisión:** Cierra la §2 de `DISENO.md` (qué habilidad mide el juego) y reencuadra la 010.
+
+- **Habilidad primaria: planificación.** El jugador arma el talismán contra encuentros
+  telegrafiados (decide *qué* fieldear contra lo que ve), con attrition como capa de sostén
+  (gastar bien un loadout que no se recarga).
+- **Talismán = loadout con cap.** El nivel del talismán es un tope sobre la **suma** de
+  niveles de las gemas fieldeadas; bajo ese tope se reparte (una gema alta y frágil, o varias
+  medias y equilibradas). El poder disponible es el agregado de las gemas fieldeadas.
+- **Gemas con rol**, no fungibles: elementales, con ventaja de tipo frente a enemigos
+  telegrafiados. Meter todo en un elemento deja desnudo en los otros (especialización frágil).
+  Esto resuelve la duda abierta de §3 ("fungibles o con rol") hacia rol.
+- **Se gastan, no se recargan** dentro de una vida. Cada acción (atacar, defender, moverse,
+  esquivar) consume carga. Una gema gastada no se rellena; una muerta no revive. El poder se
+  repone consiguiendo **gemas nuevas** (drops), no descansando.
+- **Combate telegrafiado:** el encuentro revela al guardián y su tipo antes de comprometerse
+  (p.ej. la llave muestra al monstruo protector). La información se da, no se infiere ni se
+  gana muriendo.
+- **Roster y fielding:** se poseen gemas (inventario) y se fieldean pocas bajo el cap.
+  Re-fieldear tiene fricción (costo por definir, p.ej. un turno). Sin fricción, el counter
+  perfecto es gratis y el combate se vuelve un lookup.
+- **Desguace:** una gema se puede fieldear (poder ahora) o desguazar en **esencia** para
+  subir el cap. La misma gema no hace las dos cosas: chatarra → cap, premios → fieldear.
+- **Curva de cap (forma cerrada, números abiertos):** sube fuerte con el nivel; el
+  crecimiento real lo empujan las presas grandes (bosses, cofres), no el farmeo de morralla.
+  La "morralla" es **relativa al maze**: un bicho de un maze alto puede valer más que un boss
+  de tres mazes atrás. Lo que decae es el valor del contenido **pasado** relativo a tu nivel
+  actual (se apaga el back-farm), no el valor absoluto de un bicho. Drops y costos escalan
+  juntos con la dificultad.
+- **Drops:** bosses y cofres **garantizan** la gema importante; un monstruo común tiene chance
+  baja (~1 en 100) de soltar una gema grande — variance como condimento, no como plan.
+- **Estructura:** secuencia de mazes de dificultad creciente (monstruos, caminos, tamaño). El
+  talismán **persiste entre mazes**; se banca al **extraer vivo**, no al farmear.
+- **Muerte:** resetea el maze a su estado de entrada y restaura las gemas al loadout de
+  entrada de ese maze — se pierde el progreso no bankeado de la corrida. Revividas como tope
+  diferido (cantidad por definir); al agotarlas, game over.
+
+Se mantiene de la 010: vida como stat propio del PJ, acoplada al poder por umbral (mientras
+hay poder la vida no se toca; sin poder, forzar drena vida; vida 0 = derrota).
+
+**Por qué:** Da forma a la economía gruesa como una sola pieza donde cada capa mueve una
+decisión distinta — carga que se gasta ("¿gasto o guardo?"), roster que se fieldea ("¿tengo el
+counter y me lo puedo gastar acá?"), cap que se sube fundiendo ("¿fieldeo esta gema o la
+desguazo?") — y la secuencia de mazes le da ritmo. Reencuadra la 010: el talismán deja de ser
+"un pool de poder = suma de cuatro gemas que se recupera" y pasa a "un loadout con cap cuyas
+gemas se gastan sin recarga y se reponen looteando".
+**Se descartó:** deducción como habilidad primaria (el combate telegrafiado da la info, no la
+esconde); gemas fungibles (matarían la fragilidad de la especialización y el sentido de los
+roles); recarga de gemas dentro de una vida (se prefirió reponer looteando, más brutal y
+coherente con la muerte que resetea); fijar los números de la curva ahora (son tuning, se
+ajustan jugando — regla heredada de la 010).
