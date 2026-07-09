@@ -27,7 +27,7 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 - [x] `resources/js/maze.js` — espejo exacto
 - [x] **Test de paridad**: mismo seed → mismo hash de laberinto en PHP y JS, sobre un set
       de seeds fijos y commiteados. El test más importante del repo.
-- [ ] Comando Artisan para volcar el hash de un seed offline (herramienta de validación)
+- [x] Comando Artisan para volcar el hash de un seed offline (herramienta de validación)
 
 ## Fase 2 — El laberinto se ve
 
