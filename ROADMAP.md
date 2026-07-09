@@ -31,10 +31,10 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 
 ## Fase 2 — El laberinto se ve
 
-- [ ] Endpoint que entrega un seed (o token de partida) al cliente
-- [ ] `resources/js/game.js` — regenera el laberinto desde el seed y lo mantiene en memoria
-- [ ] Render sobre `<canvas>`
-- [ ] Movimiento local del mago (sin tocar el servidor)
+- [x] Endpoint que entrega un seed (o token de partida) al cliente
+- [x] `resources/js/game.js` — regenera el laberinto desde el seed y lo mantiene en memoria
+- [x] Render sobre `<canvas>`
+- [x] Movimiento local del mago (sin tocar el servidor)
 - [ ] Radio de visión / niebla
 
 ## Fase 3 — Estado de partida y eventos
