@@ -15,6 +15,12 @@ Route::get('/pj', function () {
     return view('pj-playground');
 });
 
+// Playground descartable: un combate real por turnos contra el resolver. Seteo
+// mínimo y a pelear — para sentir el combate de la DECISIONES.md 012, no para tunear.
+Route::get('/pelea', function () {
+    return view('pelea');
+});
+
 /**
  * Endpoint descartable del playground: corre el CombatResolver real (autoridad
  * de combate en el servidor, axioma 4) para tantear los números de la
