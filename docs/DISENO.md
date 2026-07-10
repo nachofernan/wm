@@ -60,8 +60,18 @@ umbral.
   gratis y el combate se vuelve un lookup.
 - **Desguace.** Una gema se puede fieldear (poder ahora) o desguazar en **esencia** para subir
   el cap del talismán. La misma gema no hace las dos cosas: chatarra → cap, premios → fieldear.
-- **Vida y umbral (de la 010).** La vida es un stat propio del PJ. Mientras hay poder, la vida
-  no se toca; al quedar sin poder, forzar (o quedarse ahí) drena vida. Vida en 0 = derrota.
+- **Vida y umbral (de la 010, refinado por la 012).** La vida es un stat propio del PJ. El
+  drenaje *forzado* sigue: al quedar sin poder, forzar (o quedarse ahí) drena vida; vida 0 =
+  derrota. Pero la vida ya no es intocable mientras hay poder: con la defensa por elección se
+  puede **gastar por decisión** (ver abajo).
+- **Gema de dos ejes y resolución de combate (ver `DECISIONES.md` 012).** Cada gema tiene
+  **nivel** (poder, fijo, cuenta para el cap) y **esencia** (carga, se gasta al atacar y
+  defender; esencia 0 = piedra inerte, no suma a poder ni visión). El poder actual es la suma de
+  niveles de las gemas fieldeadas con esencia. **Atacar cuesta esencia igual al nivel** de la
+  gema (nivel alto = golpes caros = durás menos). El daño es por **ratio**
+  (`poder × K/(K+defensa) × elemental × azar`), nunca muro: el alfeñique siempre araña. La
+  defensa es **por elección**: comer el golpe (a la vida) o bloquearlo entero gastando esencia,
+  más barato con el elemento con ventaja. La rueda elemental gobierna ataque *y* defensa.
 
 La **forma** de la curva de cap está decidida: sube fuerte con el nivel, el crecimiento real lo
 empujan las presas grandes (bosses/cofres), y el valor del contenido **pasado** decae relativo
@@ -71,9 +81,14 @@ escalan juntos con la dificultad del maze.
 
 Lo que queda **abierto a propósito** (es tuning, se ajusta jugando — no de antemano):
 
-- ❓ Los roles concretos de los cuatro elementos y cómo mapean a visión / hechizos / defensa.
-- ❓ Todos los números: costo de cada acción, esencia por gema, los valores de la curva de cap.
-- ❓ La fricción exacta de re-fieldear (¿un turno?, ¿solo en zona segura?).
+- ❓ La **rueda elemental concreta**: qué elemento vence a cuál. Ahora es doblemente
+  load-bearing (gobierna ataque *y* defensa, ver 012), así que hay que diseñarla en serio.
+- ❓ Cómo mapean los elementos a **visión** (¿la visión drena esencia por turno?).
+- ❓ Los **valores** de combate (nivel, esencia, `K`, `F`, `C`, peso, crítico) — arranque en la
+  012, se fijan con el prototipo de tuning.
+- ❓ Costo en esencia de **moverse / esquivar** (la 011 los listaba; el combate 012 solo cerró
+  atacar y defender).
+- ❓ Los valores de la **curva de cap** y la **fricción de re-fieldear** (¿un turno?, ¿zona segura?).
 - ❓ El ritmo de drops y su tabla (ver §6).
 
 ## 4. Qué significa ganar 🧪
@@ -101,12 +116,21 @@ puede dar.
 antes de comprometerse (p.ej. la llave muestra al monstruo protector), así el jugador responde
 con el setup, no con reflejos. La información se da, no se gana muriendo.
 
-El **movimiento** de los monstruos sigue ❓. Las direcciones viables:
+El **movimiento/spawn** de los monstruos tiene un modelo de trabajo 🧪, **provisional,
+pendiente de revisar con el asesor** (no es una decisión cerrada, es lo que se está
+usando para poder construir algo):
 
-- **Estáticos** — guardan una celda o un pasaje; el peligro es posicional.
-- **Reactivos al turno** — solo se mueven cuando el jugador se mueve (lockstep).
+- Por cada movimiento del mago entre celdas, se tira `rand(1,20)`; con un 1 (5%) spawnea
+  un monstruo.
+- Entrar a una celda con llave dispara un monstruo **obligatorio** (el guardián
+  telegrafiado de la 011: la llave muestra al monstruo protector).
+- Las zonas de spawn "naturales" (fuera de llaves) todavía no están delimitadas —
+  ❓ si hay zonas excluidas (p.ej. cerca de la entrada) o vale cualquier celda.
 
-Sin decidir. Probablemente una mezcla. Se charla.
+Esto reemplaza, por ahora, las direcciones que se habían pesado (estáticos puros /
+reactivos al turno / mezcla): el spawn es aleatorio por paso en vez de posicional fijo.
+Queda para la charla con el asesor si esto convive con guardianes estáticos en otros
+puntos del maze, o si el encuentro aleatorio es el único mecanismo.
 
 ## 6. Los cofres y los drops 🧪
 

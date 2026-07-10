@@ -1,5 +1,6 @@
 import { generarLaberinto } from './maze.js';
 import { marcas as calcularMarcas } from './mapaBuilder.js';
+import { crearPrng, randBelow } from './prng.js';
 
 const CELDA = 20; // px por celda en el canvas
 
@@ -37,6 +38,7 @@ export function game() {
     return {
         token: null,
         seed: null,
+        prngEncuentros: null,
         matriz: null,
         marcas: null,
         ancho: 0,
@@ -53,6 +55,9 @@ export function game() {
             const { seed, ancho, alto, token } = window.__MAZE__;
             this.token = token;
             this.seed = seed;
+            // Stream separado del PRNG del maze (decorrelado con XOR) para no
+            // pisar la secuencia que usa generarLaberinto.
+            this.prngEncuentros = crearPrng(seed ^ 0x9E3779B9);
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.ancho = ancho;
@@ -154,7 +159,18 @@ export function game() {
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
 
             const idxLlave = this.buscarLlave(nx, ny);
-            if (idxLlave !== -1 && !this.llavesRecogidas[idxLlave]) {
+            const llaveSinRecoger = idxLlave !== -1 && !this.llavesRecogidas[idxLlave];
+
+            // Spawn de monstruos — modelo provisional, ver docs/DISENO.md §5
+            // (pendiente de revisar con el asesor). 1/20 por movimiento, y
+            // obligatorio al pisar una llave sin recoger (el guardián
+            // telegrafiado de docs/DECISIONES.md 011). Sin resolución de
+            // combate todavía: solo se registra el encuentro.
+            if (llaveSinRecoger || randBelow(this.prngEncuentros, 20) === 0) {
+                this.movimientos.push({ dir: 'encuentro', x: nx, y: ny });
+            }
+
+            if (llaveSinRecoger) {
                 this.llavesRecogidas[idxLlave] = true;
                 if (idxLlave < this.puertasAbiertas.length) {
                     this.puertasAbiertas[idxLlave] = true; // llave de puerta

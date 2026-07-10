@@ -180,3 +180,73 @@ esconde); gemas fungibles (matarían la fragilidad de la especialización y el s
 roles); recarga de gemas dentro de una vida (se prefirió reponer looteando, más brutal y
 coherente con la muerte que resetea); fijar los números de la curva ahora (son tuning, se
 ajustan jugando — regla heredada de la 010).
+
+## 012 — Resolución de combate: gema de dos ejes, costo por nivel, defensa por elección — 2026-07-10
+**Decisión:** Cierra los números de combate que la 011 dejó abiertos y refina la 010. Es la
+base que el prototipo de tuning (mago promedio vs monstruo promedio) va a exponer para
+ajustar valores antes de llevarlo al maze.
+
+- **La gema tiene dos ejes independientes:**
+  - **nivel** — el *poder* de la gema. Fijo dentro de una vida. Es lo que cuenta para el cap
+    del talismán (011) y no decae con el uso. Nivel 5 pega como 5 en el primer tiro y en el
+    último.
+  - **esencia** — la *carga* (la "carga" que la 011 ya nombraba). Se consume al atacar y al
+    defender. Esencia 0 = **piedra inerte**: no ataca, no defiende, no suma a poder ni a
+    visión. Una gema sin esencia es un cacho de piedra.
+  Poder y aguante quedan **ortogonales**: una gema demoledora casi seca (nivel 9, esencia 2)
+  o una piedrita eterna (nivel 2, esencia 30).
+
+- **Poder actual del talismán = suma de niveles de las gemas fieldeadas con esencia > 0.**
+  Reconcilia la 010: el poder no baja porque el nivel decaiga, baja porque las gemas agotadas
+  salen de la suma. Poder 0 = todas las gemas fieldeadas secas.
+
+- **Costo de atacar = el nivel de la gema, en esencia.** Nivel 3 con 30 de esencia = 10
+  golpes; nivel 10 con 30 = 3 golpes. Poder alto = golpes caros = durás menos. Es la forma
+  concreta de "ver más / pegar más fuerte = durar menos".
+
+- **Daño de un golpe (ratio, nunca cero):**
+  `daño = max(1, round( poder × K/(K+defensa) × mult_elemental × variación ))`, con
+  `poder = nivel × F`. Ratio, no muro: el alfeñique siempre araña, nunca gana.
+  - `mult_elemental` ∈ {1.5 ventaja, 1.0 neutral, 0.5 revés} según la rueda.
+  - `variación` = azar en [0.85, 1.15] con crítico (p≈0.10 → ×1.75). Es mística, **no decide
+    vida/muerte**: se planea contra el piso (0.85). El azar del combate usa el `Prng` del
+    proyecto (mulberry32), no `Math.random`/`mt_rand`, para que la resolución sea reproducible
+    en el replay de eventos (axioma 6).
+
+- **Defensa por elección (completa o nada).** Cuando llega un golpe, el jugador elige:
+  - **comer** — el daño va a la vida (pasa por el ratio con la defensa base). No gasta esencia.
+  - **bloquear con una gema** — anula el golpe entero y gasta esencia de esa gema:
+    `costo_bloqueo = max(1, round( peso × factor_def ))`, con `peso` del ataque (1..3) y
+    `factor_def` = 0.5 ventaja / 1.0 neutral / 2.0 revés (elemento de la gema vs elemento del
+    ataque). Sin esa esencia, no se puede bloquear con esa gema. Un ataque pesado bloqueado con
+    el elemento equivocado funde media gema.
+  La rueda gobierna ataque *y* defensa; por eso cada gema pesa el doble.
+
+- **Gema extinta (esencia 0): un último sacudón.** Se puede castear a nivel pleno pagando
+  `nivel × C` de vida, una sola vez; después la gema es piedra. Es el umbral de la 010 (poder
+  0 → forzar drena vida), ahora concreto. Un solo sentido: la vida paga el hechizo, la gema no
+  revive.
+
+- **Refina la 010:** "mientras hay poder, la vida no se toca" deja de ser absoluto. El drenaje
+  *forzado* al llegar a poder 0 sigue en pie, pero ahora la vida también se puede gastar *por
+  decisión* (comer un golpe en vez de gastar esencia, o el último sacudón). La vida pasa de
+  reloj de muerte a recurso que también se administra.
+
+- **Números de arranque (tuning, se ajustan jugando — regla de la 010/011):** nivel 1..10,
+  esencia por gema 0..~30, peso de ataque 1..3, `K`=50, `F`=3, `C`=2, crítico p=0.10 ×1.75,
+  variación [0.85, 1.15]. Las escalas son **relativas**: "chico" y "grande" dependen de la
+  evolución (nivel 1 es chico cuando el techo es 10; 10 es chico cuando las gemas llegan a
+  100). Se fijan con el prototipo de tuning, no de antemano.
+
+**Por qué:** La 011 dejó "todos los números" abiertos y el combate sin fórmula. Esto le da una
+resolución concreta y jugable manteniendo los axiomas: ratio en vez de muro (siempre se puede
+pegar), azar solo como mística (nunca decide la muerte), y la esencia como moneda única de
+ataque y defensa hace que cada gema pese el doble. El costo-por-nivel ata "poder = riesgo" a un
+número. La defensa por elección convierte cada golpe recibido en una decisión ("¿gasto vida o
+gasto munición?") en vez de una resta pasiva.
+**Se descartó:** daño sustractivo con muro (`ataque − defensa`) — concentra la varianza en el
+umbral y crea paredes duras; se prefirió el ratio. Bloqueo parcial (algo se filtra a vida) — se
+prefirió completo-o-nada para que la elección vida/esencia sea nítida. Poder que decae con cada
+cast (la gema se debilita con el uso) — se prefirió nivel fijo + esencia que se agota (poder y
+aguante ortogonales). Azar en el umbral de muerte (daño que puede matar por mala tirada) — rompe
+la planificación.

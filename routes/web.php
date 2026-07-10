@@ -1,10 +1,51 @@
 <?php
 
+use App\Game\CombatResolver;
+use App\Game\Prng;
 use App\Http\Controllers\JugarController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
+});
+
+// Playground descartable para tantear vida/poder/talismán del PJ — ver docs/DECISIONES.md 010 y 011.
+Route::get('/pj', function () {
+    return view('pj-playground');
+});
+
+/**
+ * Endpoint descartable del playground: corre el CombatResolver real (autoridad
+ * de combate en el servidor, axioma 4) para tantear los números de la
+ * DECISIONES.md 012 antes de llevarlos a la Fase 4. No persiste nada.
+ */
+Route::post('/pj/combate', function (Request $request) {
+    $datos = $request->validate([
+        'accion' => 'required|in:golpe,bloqueo',
+        'reglas' => 'array',
+        'semilla' => 'integer',
+        'nivel' => 'integer|min:1',
+        'elementoAtacante' => 'string',
+        'defensa' => 'integer|min:0',
+        'elementoDefensor' => 'string',
+        'peso' => 'integer|min:1',
+        'elementoGema' => 'string',
+        'elementoAtaque' => 'string',
+    ]);
+
+    $prng = new Prng($datos['semilla'] ?? random_int(0, PHP_INT_MAX));
+    $resolver = new CombatResolver($prng, $datos['reglas'] ?? []);
+
+    if ($datos['accion'] === 'golpe') {
+        return response()->json($resolver->golpe(
+            $datos['nivel'], $datos['elementoAtacante'], $datos['defensa'], $datos['elementoDefensor'],
+        ));
+    }
+
+    return response()->json([
+        'costo' => $resolver->costoBloqueo($datos['peso'], $datos['elementoGema'], $datos['elementoAtaque']),
+    ]);
 });
 
 Route::get('/jugar', [JugarController::class, 'crear'])->name('jugar.crear');
