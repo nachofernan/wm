@@ -436,10 +436,12 @@
 
         function victoria() {
             S.bichosCaidos += 1;
-            // Drop: nivel escalado por la dificultad del rival; esencia ~ para varios casts.
+            // Drop: nivel escalado por la dificultad del rival; esencia generosa
+            // para que el neto por pelea sea positivo (si no, es espiral de muerte).
+            // Números de playground — se ajustan al llevar esto al maze.
             const elemento = ELEMENTOS[Math.floor(Math.random() * ELEMENTOS.length)];
-            const nivel = Math.max(1, S.rival.dificultad + Math.floor(Math.random() * 3) - 1);
-            const gema = crearGema(elemento, nivel, nivel * 4);
+            const nivel = S.rival.dificultad + Math.floor(Math.random() * 3); // dificultad .. +2
+            const gema = crearGema(elemento, nivel, nivel * 6);
             S.gemas.push(gema);
             S.gemasJuntadas += 1;
             S.dropPendiente = gema.id;
@@ -481,7 +483,7 @@
                         <span class="nom">${g.elemento}</span>
                         <span class="lvl">nivel ${g.nivel}</span>
                     </div>
-                    <div class="barra-cont"><div class="barra esencia" style="width:${Math.min(100, (g.esencia / (g.nivel * 4 || 1)) * 100)}%"></div></div>
+                    <div class="barra-cont"><div class="barra esencia" style="width:${Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100)}%"></div></div>
                     <div class="valor">esencia ${g.esencia}${inerte ? ' — inerte' : ''}</div>
                     ${botones ? `<div class="acciones">${botones}</div>` : ''}
                 </div>`;
