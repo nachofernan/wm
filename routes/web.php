@@ -21,6 +21,14 @@ Route::get('/pelea', function () {
     return view('pelea');
 });
 
+// Playground descartable: la hoja del mago jugable. Une el combate del /pelea con
+// la economía del talismán (010/011): peleas sueltas, drop de gema al ganar, y el
+// loop guardar/fieldear/desguazar. Sin perillas de tuning — usa los DEFAULTS del
+// resolver. Reúsa POST /pj/combate (autoridad de combate en el servidor, axioma 4).
+Route::get('/mago', function () {
+    return view('mago');
+});
+
 /**
  * Endpoint descartable del playground: corre el CombatResolver real (autoridad
  * de combate en el servidor, axioma 4) para tantear los números de la
