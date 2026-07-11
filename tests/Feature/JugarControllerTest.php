@@ -107,6 +107,19 @@ test('el dado secreto puede no disparar: paso legal sin encuentro ni evento', fu
     expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
 });
 
+test('un paso con un combate abierto es rechazado (hay que pelear primero)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 23, 'pos_y' => 5, 'talisman' => MazeCombate::talismanInicial(),
+        'combate' => MazeCombate::iniciar(42, 23, 5, 'agua', 11, 0),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
+    expect($run->fresh()->pos_y)->toBe(5); // no se movió
+});
+
 test('combate sin combate activo es rechazado', function () {
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,

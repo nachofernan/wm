@@ -96,6 +96,12 @@ class JugarController extends Controller
             return response()->json(['ok' => false, 'motivo' => 'terminada'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        // No se camina con un combate abierto: hay que resolverlo primero. El
+        // cliente ya lo frena, pero el servidor no confía en eso (axioma 4).
+        if ($run->combate !== null) {
+            return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         if (! $this->pasoLegal($run, $datos['x'], $datos['y'])) {
             return response()->json(['ok' => false, 'motivo' => 'ilegal'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }

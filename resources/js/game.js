@@ -68,6 +68,7 @@ export function game() {
         resultado: null, // 'victoria' | 'derrota' | null
         drop: null,
         consola: [],
+        enviando: false, // hay un ping de paso en vuelo — no se manda otro
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -176,7 +177,9 @@ export function game() {
         mover(evento) {
             // No se camina con un combate abierto ni con un drop sin resolver:
             // la pelea (y su botín) frenan la marcha (docs/DECISIONES.md 018).
-            if (this.terminado || this.combate || this.resultado) return;
+            // Tampoco con un ping en vuelo: un paso a la vez, para no mandar
+            // pasos fuera de orden y desincronizar la posición con el servidor.
+            if (this.terminado || this.combate || this.resultado || this.enviando) return;
 
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
@@ -193,6 +196,7 @@ export function game() {
 
             if (this.esSalida(nx, ny) && !this.salidaAbierta) return; // salida cerrada
 
+            const previo = { x: this.mago.x, y: this.mago.y };
             this.mago.x = nx;
             this.mago.y = ny;
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
@@ -219,7 +223,7 @@ export function game() {
             if (this.esSalida(nx, ny)) {
                 this.finalizar();
             } else {
-                this.pingPaso(nx, ny);
+                this.pingPaso(nx, ny, previo);
             }
 
             this.dibujar();
@@ -234,18 +238,29 @@ export function game() {
          * Si el dado secreto disparó un encuentro, se registra (el combate
          * dentro del maze es el próximo escalón).
          */
-        async pingPaso(x, y) {
-            const respuesta = await fetch(`/jugar/${this.token}/paso`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify({ x, y }),
-            });
+        async pingPaso(x, y, previo) {
+            this.enviando = true;
+            let respuesta;
+            try {
+                respuesta = await fetch(`/jugar/${this.token}/paso`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify({ x, y }),
+                });
+            } finally {
+                this.enviando = false;
+            }
 
             if (!respuesta.ok) {
-                console.warn('paso rechazado por el servidor', x, y);
+                // Desync o paso ilegal: el servidor manda. Volvemos el mago a la
+                // celda confirmada y redibujamos.
+                this.mago.x = previo.x;
+                this.mago.y = previo.y;
+                this.registrar(`✗ paso rechazado, vuelvo a (${previo.x},${previo.y})`);
+                this.dibujar();
                 return;
             }
 
