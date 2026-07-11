@@ -433,7 +433,6 @@ export function game() {
         golpesRestantes(g) { return Math.floor(g.esencia / (g.nivel || 1)); },
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
         poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
-        anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
 
         // ── Preview de combate (solo display; la resolución la hace el servidor) ──
         // Daño estimado de atacar con la gema g al monstruo actual: tirada media,

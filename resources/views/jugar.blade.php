@@ -17,6 +17,12 @@
         .maze-layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; }
         .caja { background: var(--caja); border: 1px solid var(--linea); border-radius: 10px; padding: 14px; }
         .col { display: flex; flex-direction: column; gap: 14px; width: 300px; }
+        .col.gemas { width: 360px; } /* la columna que más crece: se le da aire */
+        /* El mapa manda el ancho; la hoja del mago y la rueda se acuestan debajo. */
+        .col-mapa { display: flex; flex-direction: column; gap: 14px; }
+        .bajo-mapa { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+        .bajo-mapa .hoja { width: 260px; flex: none; }
+        .bajo-mapa .rueda { flex: 1; min-width: 240px; }
         h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); }
         h3 { margin: 0 0 4px; font-size: 16px; }
         .barra-cont { background: #100f14; border-radius: 5px; height: 14px; overflow: hidden; margin: 3px 0; }
@@ -30,7 +36,6 @@
         .gema.tierra { border-left-color: var(--tierra); } .gema.aire { border-left-color: var(--aire); }
         .gema.inerte { opacity: 0.55; }
         .gema.mini { padding: 6px 9px; margin-bottom: 5px; }
-        .barra-cont.slim { height: 6px; margin: 4px 0 0; }
         .esencia-num { font-size: 12px; color: var(--esencia); font-weight: 600; }
         .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
         .punto.fuego { background: var(--fuego); } .punto.agua { background: var(--agua); }
@@ -93,39 +98,44 @@
 
     <div x-data="game" x-on:keydown.window="mover($event)">
     <div class="maze-layout">
-        <canvas x-ref="canvas" class="shrink-0"></canvas>
+        <!-- ── Mapa, con la hoja del mago y la rueda acostadas debajo ─── -->
+        <div class="col-mapa">
+            <canvas x-ref="canvas" class="shrink-0"></canvas>
 
-        <!-- ── Hoja del mago ─────────────────────────────────────────── -->
-        <div class="col">
-            <div class="caja" x-show="talisman">
-                <h3>El mago</h3>
-                <h2 style="margin-top:10px">Vida</h2>
-                <div class="barra-cont"><div class="barra vida" :style="`width:${(talisman.vida / talisman.vidaMax) * 100}%`"></div></div>
-                <div class="valor" x-text="`${talisman.vida} / ${talisman.vidaMax}`"></div>
+            <div class="bajo-mapa">
+                <div class="caja hoja" x-show="talisman">
+                    <h3>El mago</h3>
+                    <h2 style="margin-top:10px">Vida</h2>
+                    <div class="barra-cont"><div class="barra vida" :style="`width:${(talisman.vida / talisman.vidaMax) * 100}%`"></div></div>
+                    <div class="valor" x-text="`${talisman.vida} / ${talisman.vidaMax}`"></div>
 
-                <h2 style="margin-top:12px">Talismán — poder</h2>
-                <div class="barra-cont"><div class="barra poder" :style="`width:${(poderActual() / (capEnUso() || 1)) * 100}%`"></div></div>
-                <div class="valor" x-text="`${poderActual()} / ${capEnUso()}`"></div>
+                    <h2 style="margin-top:12px">Talismán — poder</h2>
+                    <div class="barra-cont"><div class="barra poder" :style="`width:${(poderActual() / (capEnUso() || 1)) * 100}%`"></div></div>
+                    <div class="valor" x-text="`${poderActual()} / ${capEnUso()}`"></div>
 
-                <div class="stat-grid">
-                    <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
-                    <div class="stat">esencia<b x-text="talisman.esencia"></b></div>
-                    <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>
-                    <div class="stat">gemas<b x-text="talisman.gemasJuntadas"></b></div>
+                    <div class="stat-grid">
+                        <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
+                        <div class="stat">esencia<b x-text="talisman.esencia"></b></div>
+                        <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>
+                        <div class="stat">gemas<b x-text="talisman.gemasJuntadas"></b></div>
+                    </div>
+                    <div class="acciones" x-show="!combate">
+                        <button @click="subirCap()" :disabled="talisman.esencia < 5">+1 cap (5 es.)</button>
+                    </div>
                 </div>
-                <div class="acciones" x-show="!combate">
-                    <button @click="subirCap()" :disabled="talisman.esencia < 5">+1 cap (5 es.)</button>
+
+                <div class="caja rueda">
+                    <h2>Rueda elemental — quién le gana a quién</h2>
+                    <div class="rueda-ciclo">
+                        <span class="el fuego">fuego</span><span class="fl">→</span><span class="el aire">aire</span><span class="fl">→</span><span class="el tierra">tierra</span><span class="fl">→</span><span class="el agua">agua</span><span class="fl">↺</span>
+                    </div>
+                    <div class="valor" style="margin-top:6px">Le pegás al que le ganás (×1.5) y flojo al que te gana (×0.5). Para bloquear, la gema que le gana al golpe gasta la mitad.</div>
                 </div>
             </div>
+        </div>
 
-            <div class="caja rueda">
-                <h2>Rueda elemental — quién le gana a quién</h2>
-                <div class="rueda-ciclo">
-                    <span class="el fuego">fuego</span><span class="fl">→</span><span class="el aire">aire</span><span class="fl">→</span><span class="el tierra">tierra</span><span class="fl">→</span><span class="el agua">agua</span><span class="fl">↺</span>
-                </div>
-                <div class="valor" style="margin-top:6px">Le pegás al que le ganás (×1.5) y flojo al que te gana (×0.5). Para bloquear, la gema que le gana al golpe gasta la mitad.</div>
-            </div>
-
+        <!-- ── Gemas: fieldeadas + inventario (la columna que más crece) ─ -->
+        <div class="col gemas">
             <div class="caja" x-show="talisman">
                 <h2>Gemas fieldeadas</h2>
                 <template x-for="g in fieldeadas()" :key="g.id">
@@ -134,7 +144,6 @@
                             <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
                             <span class="esencia-num" x-text="g.esencia === 0 ? 'inerte' : `${g.esencia} es · ~${golpesRestantes(g)} golpes`"></span>
                         </div>
-                        <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="acciones" x-show="combate && combate.turno === 'tuTurno'">
                             <button class="ataque" :class="matchupAtaque(g)" @click="atacar(g.id)"
                                 x-text="`atacar · ~${danioEstimado(g)} dmg (${matchupAtaque(g)})`"></button>
@@ -143,8 +152,8 @@
                             <button @click="bloquear(g.id)" :disabled="g.esencia === 0"
                                 x-text="`bloquear · ${costoBloqueoEstimado(g)} es.`"></button>
                         </div>
-                        <div class="acciones" x-show="!combate">
-                            <button @click="guardar(g.id)">guardar</button>
+                        <div class="acciones-fila" x-show="!combate">
+                            <button class="mini-btn" @click="guardar(g.id)" title="guardar en el inventario">▼ guardar</button>
                         </div>
                     </div>
                 </template>
@@ -182,7 +191,7 @@
         </div>
 
         <!-- ── Combate + partida ─────────────────────────────────────── -->
-        <div class="col">
+        <div class="col combate">
             <!-- Combate activo -->
             <div class="caja" x-show="combate" x-cloak>
                 <h3 x-text="combate ? combate.monstruo.nombre : ''"></h3>
