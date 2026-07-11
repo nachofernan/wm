@@ -250,3 +250,134 @@ prefirió completo-o-nada para que la elección vida/esencia sea nítida. Poder 
 cast (la gema se debilita con el uso) — se prefirió nivel fijo + esencia que se agota (poder y
 aguante ortogonales). Azar en el umbral de muerte (daño que puede matar por mala tirada) — rompe
 la planificación.
+
+## 013 — Se extirpa "poder = vida": la atrición la carga la esencia, ver cuesta cap — 2026-07-10
+**Decisión:** **Revierte** el acoplamiento vida↔poder de la 010 y el drenaje pasivo que la 011
+y la 012 arrastraban. Se elimina la idea de "el talismán es simultáneamente el poder y la vida"
+y su corolario "ver más / existir con poder = durar menos en vida".
+- **No hay drenaje pasivo de vida.** Quedarse en poder 0, o tener el talismán cargado, no le
+  saca vida al mago por el mero hecho de existir o de ver. La vida solo la amenaza el **combate**
+  (comer un golpe, el último sacudón de la 012).
+- **El costo de ver se muda de la vida al cap.** Visión más grande = más gema de visión
+  fieldeada = **cap** que no gastás en ataque o defensa. La tensión "ver más cuesta algo" se
+  mantiene, pero pagada en espacio del talismán, no en un impuesto por turno.
+- **La esencia queda como el único reloj del juego.** La atrición que "poder = vida" venía a
+  crear ya la carga la economía de esencia de la 012 (finita, no se recarga sola, gema en 0 =
+  inerte). El drenaje pasivo era redundante.
+- Se conserva de la 012: el **último sacudón** (gastar vida *por decisión* para castear una gema
+  seca) y **comer un golpe** (mandar daño a la vida en vez de gastar esencia). Vida 0 = derrota
+  sigue existiendo, pero se llega peleando, no por un tic pasivo.
+
+**Por qué:** El drenaje pasivo era la parte más castigadora y de contabilidad más fina del
+modelo, y en un juego indie por turnos explota de más. Con la esencia ya cargando la atrición,
+"poder = vida" pasó a ser doble castigo por lo mismo. Mudar el costo de visión al cap conserva
+la tensión sin bookkeeping por turno y encaja con la hoja de personaje de la 014 (visión es una
+stat que las gemas potencian a costa de espacio). Nota de encuadre general de esta charla: el
+juego es single-player para el autor y amigos (a lo sumo portfolio), así que el criterio pasa a
+ser **fluidez antes que blindaje** — la autoridad del servidor se mantiene por corrección y
+estado chico, no como muro anti-trampa (el cliente conoce el seed y eso ya se acepta, axioma 4).
+**Se descartó:** el modelo "poder = vida / ver más = durar menos por vida" (010, hipótesis
+original de DISENO §3) — buen lore, pero castigo redundante y fino de más una vez que la esencia
+carga la atrición.
+
+## 014 — Hoja de personaje: el mago es solo vida, el talismán es el stat block — 2026-07-10
+**Decisión:** Separa al **mago** (solo tiene **vida** — la cosa que muere) del **talismán** (todo
+el resto de la hoja de personaje). Las **gemas potencian** los stats del talismán.
+- **Stats del talismán:** ataque, defensa, bonus crítico, visión, memoria, y lo que el juego
+  vaya pidiendo. El ataque sigue siendo **gema-a-gema** (la 012 no se toca: atacás con una gema
+  concreta, gastás su esencia, importa su elemento); el resto son stats pasivos.
+- **Nivel del talismán = progresión maestra**, comprada con esencia pura (ver 015). Es la
+  máscara de progreso "más allá de espacios para gemas": subir de nivel sube **stats base** y
+  también el cap.
+- **El cap deriva del nivel (escalonado, no afinable).** Nivel 1 → 10 de cap, nivel 2 → 20,
+  nivel 3 → 30… (números placeholder). Entre niveles el cap no se afina punto a punto: la
+  esencia de más se junta para el próximo salto. Esto **revierte** el "subir el cap punto a
+  punto con esencia" de la 011 hacia una sola progresión (nivel → cap + stats base).
+- **Gemas → stats con acople suelto**, no 1 a 1. Tendencia elemental (fuego~ataque, aire~visión,
+  tierra~memoria, agua~defensa), pero una gema puede tocar varios stats (una de aire da visión
+  *y* +10% de ataque). Fieldear una gema **nunca es solo DPS**: mueve la hoja entera.
+- **Visión = revelado gradual de datos de celda**, nunca a través de muros. Escala de ejemplo:
+  v1 ves tu celda; v2 la "vibra" de la contigua; v3 + porcentaje de aparición; v10 tres celdas a
+  la redonda + color de relleno antes de pisar. Es previsión, no rayos X. Cuesta cap (013), y
+  estructura lo que ve el **jugador honesto** (a uno que abre la consola no le esconde nada — el
+  cliente conoce el seed; es el tradeoff aceptado del axioma 4, no una barrera de seguridad).
+- **Números TBD a propósito** (regla mecánica-antes-que-número, heredada de 010/011/012): qué
+  bumpea cada nivel, la curva de cap, los porcentajes de acople. Se rellenan jugando.
+
+**Por qué:** Le da casa a lo que el CLAUDE.md ya prometía ("el radio de visión sale del
+talismán") y hace del talismán *la* hoja de personaje: perdés/vaciás el talismán y el mago no es
+nada. Una sola progresión (nivel) evita la inflación de una tercera capa de stats. El acople
+suelto elemento→stat convierte "qué gemas fieldeo" en una decisión de hoja completa, no de puro
+daño.
+**Se descartó:** stats repartidos entre mago y talismán (el mago queda solo con vida, más
+legible); un "nivel de talismán" como tercer eje aparte del cap y de las gemas (se derivó del
+cap para no inflar); acople elemento→stat estricto 1:1 (se prefirió suelto, gemas multi-stat).
+
+## 015 — Esencia única en dos estados: ligada (combate) y pura (oro) — 2026-07-10
+**Decisión:** Reemplaza la idea de "dos esencias" por **una sola sustancia en dos estados**, y
+cierra qué es el oro del juego.
+- **Esencia ligada** — la carga dentro de una gema (la "esencia" de la 012). Se gasta atacando y
+  bloqueando. Gema en 0 = piedra inerte.
+- **Esencia pura (el oro)** — se obtiene **fungueando** (desguazando) una gema: rendís un
+  **porcentaje de la esencia que le queda** (50% placeholder, quizás hasta el total). Se acumula
+  en el talismán y **compra niveles** (014).
+- **El desguace rinde sobre lo que queda**, así que cada tiro que pegás con la gema baja lo que
+  vale funguearla después. **"Usarla ahora o cobrarla después"** es una decisión real.
+- **Una gema en 0 no se funguea**; sacada del talismán es una **roca** muerta, sin valor.
+- La esencia pura es la moneda de meta-progreso; la ligada es combustible de combate. Es la misma
+  sustancia: el desguace la libera de la gema con pérdida.
+
+**Por qué:** Unifica la economía en un solo recurso legible ("la esencia es el oro"), sin la
+colisión conceptual de dos monedas que se llaman parecido. El desguace-sobre-lo-restante crea la
+tensión gastar-vs-cobrar sin reglas nuevas. Cierra el loop: gema con carga → la gastás peleando →
+gema casi seca → la fundís en oro (con pérdida) → subís de nivel. **Refina la 011**: el desguace
+ya no va a "subir el cap punto a punto" sino a esencia pura que compra niveles (014).
+**Se descartó:** dos pozos separados con nombres distintos (carga vs esencia) — se colapsaron en
+uno; desguace a rendimiento fijo independiente del uso (se prefirió proporcional a lo restante,
+que es lo que genera la decisión).
+
+## 016 — Encuentros por celda, paso validado por el servidor, niebla en tres zonas — 2026-07-10
+**Decisión:** Cierra cómo aparecen los encuentros en el maze y **refina el axioma 3** (la 003).
+- **Probabilidad de encuentro por celda, derivada del seed.** Cada celda tiene una probabilidad
+  (p.ej. 10% / 5% / 1%) que sale del generador → es **paritaria PHP/JS** y va al
+  `PROTOCOLO_GENERADOR.md` con su test de paridad, porque el cliente la **pinta** y el servidor
+  la usa como sesgo. Pintura: color = elemento (rojo fuego, azul agua, marrón tierra, gris aire),
+  alpha = probabilidad. **Colmenas:** una celda-núcleo de alta probabilidad que **irradia y
+  decae** en las vecinas (15/13/10/7…/1) y **atraviesa muros** (el peligro sangra donde vos no
+  pasás); limpiar el núcleo apaga toda la zona, y el núcleo puede ser casi inalcanzable.
+- **El disparo del encuentro es secreto del servidor**, no derivado del seed. Si saliera del
+  seed, el cliente (que lo conoce) lo pre-calcularía y no habría sorpresa. El sesgo es público y
+  se pinta; la tirada de "¿me saltó algo ahora?" la tira el server y el cliente no la predice.
+- **Refinamiento del axioma 3:** el paso del mago **sí viaja al servidor** — pero solo para que
+  el server valide (¿celda adyacente?, ¿no es muro?, regenerando el maze desde el seed) y tire el
+  dado del encuentro. **No** sincroniza el mapa ni el estado: el laberinto sigue siendo local
+  desde el seed, caminar y chocar paredes es local e instantáneo, y la latencia del ping se tapa
+  con la animación del paso. Es lo contrario del pecado de la versión vieja (que recargaba la
+  matriz por paso); acá viaja un JSON de dos enteros.
+- **Los pasos no se persisten como eventos.** La **posición actual** y el **set de celdas
+  visitadas** viven en la caché `runs` (proyección, no verdad — axioma 4/6). Solo se vuelven
+  **evento inmutable** las cosas que importan: un encuentro que dispara combate, un cofre, la
+  llave, la salida. Un "no encuentro" no deja rastro. Esto mantiene el log chico (axioma 5) sin
+  perder la caminata.
+- **Combate en el maze: resuelto por acción en el servidor.** Cada acción tuya (atacar con gema
+  X, bloquear con Y, comer) viaja, el server la resuelve y devuelve el resultado (próxima acción,
+  muerte del bicho). La **semilla del combate se deriva en el servidor** de `(seed de la partida,
+  celda, índice del encuentro)` — **nunca** la manda el cliente (hoy los playgrounds `/pelea` y
+  `/mago` la mandan desde el JS: es atajo de playground, prohibido en el juego real).
+- **Niebla en tres zonas** (memoria, ver 014): **oscura** = celda no visitada; **gris** =
+  visitada pero sin detalle (sabés que pasaste, no si tenía colmena, corte o bifurcación —
+  bitset barato y permanente); **blanca** = radio de visión actual (aire) **+** rastro de las
+  últimas N celdas (memoria/tierra, acotado y se desvanece).
+
+**Por qué:** Reconcilia el "encuentro random" que se quería (sorpresa, "estar hecho de goma y
+llorar para que no me toque nada") con los axiomas: el mapa es función pura del seed (001), pero
+el dado del encuentro es secreto del server, y eso obliga al ping por paso — que no es recargar
+estado, es un refinamiento chico y honesto del axioma 3 (que ya listaba "entablar combate" como
+evento legítimo). Persistir posición/visitadas en la caché y solo lo-que-importa como eventos
+mantiene el estado chico. La niebla gris ("no sé qué había") es el motor de la tensión de
+deducción sobre el mapa.
+**Se descartó:** disparo del encuentro derivado del seed (campo minado 100% predecible por el
+cliente — mata la sorpresa); persistir cada paso como evento inmutable (infla el log a miles de
+filas, rompe el espíritu del axioma 5); movimiento 100% local sin validación (se prefirió que el
+paso constate, ahora que igual viaja para el dado del encuentro); mandar la semilla de combate
+desde el cliente (se puede reintentar hasta pescar un crítico).
