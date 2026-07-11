@@ -37,13 +37,13 @@ final class EncuentroBuilder
     public const ELEMENTOS = ['fuego', 'agua', 'tierra', 'aire'];
 
     /** Piso de encuentro en toda celda: baja pero nunca cero (%). Número de arranque. */
-    public const AMBIENTE = 3;
+    public const AMBIENTE = 1;
 
     /** Cuánto cae la probabilidad por anillo al alejarse del núcleo (%). */
     public const DECAIMIENTO = 2;
 
     /** Una colmena cada tantas celdas de área (densidad). */
-    public const CELDAS_POR_NUCLEO = 400;
+    public const CELDAS_POR_NUCLEO = 250;
 
     /** Probabilidad del núcleo: base fija + tirada [0, VARIACION). */
     public const PICO_BASE = 10;

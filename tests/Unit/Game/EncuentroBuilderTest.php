@@ -9,10 +9,10 @@ use App\Game\EncuentroBuilder;
  * cambiar igual, o la paridad PHP/JS del campo está rota.
  */
 dataset('seeds_campo', [
-    'seed 1, 30x30' => [1, 30, 30, '04067babec0d838a67d5244ae8d0b9c6982a2f0180edf60f2c2593811fafdf3d'],
-    'seed 42, 30x30' => [42, 30, 30, '48ba3dd2bb1972e8c52903cc608f81be6e7a1f5f04c7f63e967849b2120aba09'],
-    'seed 12345, 20x15' => [12345, 20, 15, '98a5d44d111301a9eedb9c360426662bd8fd6efb0e2aa0f6f49a58faa1aa7367'],
-    'seed 7, 100x100' => [7, 100, 100, '53b296fed15e14c348174057a967491f665f696a908f79acbaad6611cdb8847a'],
+    'seed 1, 30x30' => [1, 30, 30, '75cfc456ed88ee5ff1d1eae13aed81c4dbeb8b89c267f7df3d1ea29770f530a6'],
+    'seed 42, 30x30' => [42, 30, 30, '2793661abaf93b5bb74e47d938de927faaa678a3956c21be2d65b302001f37be'],
+    'seed 12345, 20x15' => [12345, 20, 15, 'c1e932853d4957452f378fee7e7d1af78d0ebd7ae5e5aacc9ec1db5b46d278bf'],
+    'seed 7, 100x100' => [7, 100, 100, '736d8a86c48761c8c4e307f448634e5feb97c844da92b47e9999369bf5cf904b'],
 ]);
 
 test('produce el hash esperado para un seed fijo', function (int $seed, int $ancho, int $alto, string $hashEsperado) {

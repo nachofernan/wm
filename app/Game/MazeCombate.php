@@ -203,21 +203,34 @@ final class MazeCombate
         return self::estado($combate, $talisman, $log);
     }
 
-    /** Muerte del monstruo: genera el drop, lo mete al inventario, cierra el combate. */
+    /**
+     * Muerte del monstruo: genera el botín (una o más piedras, según la
+     * dificultad), lo mete al inventario y cierra el combate. La cantidad sale
+     * del mismo PRNG de combate (determinista, replayable): un bicho más difícil
+     * es más probable que suelte una segunda piedra.
+     */
     private static function victoria(array $combate, array $talisman, array $log): array
     {
+        $dificultad = $combate['monstruo']['dificultad'];
         $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
-        $gema = self::drop($prng, $combate['monstruo']['dificultad'], $talisman['proximoId']);
+        $cantidad = 1 + ($prng->randBelow(4) < $dificultad ? 1 : 0);
 
-        $talisman['gemas'][] = $gema;
-        $talisman['proximoId']++;
+        $drops = [];
+        for ($i = 0; $i < $cantidad; $i++) {
+            $gema = self::drop($prng, $dificultad, $talisman['proximoId']);
+            $talisman['gemas'][] = $gema;
+            $talisman['proximoId']++;
+            $talisman['gemasJuntadas']++;
+            $drops[] = $gema;
+        }
         $talisman['bichosCaidos']++;
-        $talisman['gemasJuntadas']++;
-        $log[] = ['txt' => "¡cae {$combate['monstruo']['nombre']}! dropea {$gema['elemento']} n{$gema['nivel']} → al inventario", 'crit' => false];
+
+        $lista = implode(', ', array_map(fn ($g) => "{$g['elemento']} n{$g['nivel']}", $drops));
+        $log[] = ['txt' => "¡cae {$combate['monstruo']['nombre']}! dropea {$lista} → al inventario", 'crit' => false];
 
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
-            'drop' => $gema, 'error' => null, 'log' => $log,
+            'drop' => $drops, 'error' => null, 'log' => $log,
         ];
     }
 

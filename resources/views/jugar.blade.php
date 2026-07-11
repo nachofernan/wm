@@ -37,6 +37,15 @@
         button:disabled { opacity: 0.35; cursor: not-allowed; }
         button.primario { background: #33507a; border-color: #45688f; }
         button.ataque { background: #4a2f2f; border-color: #6f4444; }
+        button.ataque.ventaja { background: #2f4a33; border-color: #4c7a55; }
+        button.ataque.reves { background: #3a3540; border-color: #55505f; opacity: 0.85; }
+        .rueda .rueda-ciclo { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 13px; }
+        .rueda .el { padding: 2px 7px; border-radius: 5px; text-transform: capitalize; font-weight: 600; }
+        .rueda .el.fuego { background: #3a221a; color: var(--fuego); }
+        .rueda .el.agua { background: #182a3a; color: var(--agua); }
+        .rueda .el.tierra { background: #2f2418; color: var(--tierra); }
+        .rueda .el.aire { background: #2a2f18; color: var(--aire); }
+        .rueda .fl { color: var(--tenue); }
         .telegrafia { border: 1px dashed #7a6f44; background: #26230f; border-radius: 8px; padding: 9px 11px; font-size: 13px; margin: 10px 0; }
         .entrante { border: 1px solid var(--vida); background: #2a1414; border-radius: 8px; padding: 11px; margin-top: 10px; }
         .drop { border: 1px solid #d8c24a; background: #29260f; border-radius: 8px; padding: 12px; margin-top: 12px; }
@@ -92,6 +101,14 @@
                 </div>
             </div>
 
+            <div class="caja rueda">
+                <h2>Rueda elemental — quién le gana a quién</h2>
+                <div class="rueda-ciclo">
+                    <span class="el fuego">fuego</span><span class="fl">→</span><span class="el aire">aire</span><span class="fl">→</span><span class="el tierra">tierra</span><span class="fl">→</span><span class="el agua">agua</span><span class="fl">↺</span>
+                </div>
+                <div class="valor" style="margin-top:6px">Le pegás al que le ganás (×1.5) y flojo al que te gana (×0.5). Para bloquear, la gema que le gana al golpe gasta la mitad.</div>
+            </div>
+
             <div class="caja" x-show="talisman">
                 <h2>Gemas fieldeadas</h2>
                 <template x-for="g in fieldeadas()" :key="g.id">
@@ -100,10 +117,12 @@
                         <div class="barra-cont"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="valor" x-text="`esencia ${g.esencia}${g.esencia === 0 ? ' — inerte' : ''}`"></div>
                         <div class="acciones" x-show="combate && combate.turno === 'tuTurno'">
-                            <button class="ataque" @click="atacar(g.id)">atacar</button>
+                            <button class="ataque" :class="matchupAtaque(g)" @click="atacar(g.id)"
+                                x-text="`atacar · ~${danioEstimado(g)} dmg (${matchupAtaque(g)})`"></button>
                         </div>
                         <div class="acciones" x-show="combate && combate.turno === 'defensa'">
-                            <button @click="bloquear(g.id)" :disabled="g.esencia === 0">bloquear</button>
+                            <button @click="bloquear(g.id)" :disabled="g.esencia === 0"
+                                x-text="`bloquear · ${costoBloqueoEstimado(g)} es.`"></button>
                         </div>
                         <div class="acciones" x-show="!combate">
                             <button @click="guardar(g.id)">guardar</button>
@@ -156,9 +175,12 @@
                 <div class="final" :class="resultado">
                     <div class="titulo" x-text="resultado === 'victoria' ? '¡Victoria!' : 'Derrota'"></div>
                 </div>
-                <div class="drop" x-show="drop">
-                    <div style="font-weight:600;margin-bottom:6px" x-text="drop ? `Botín: gema de ${drop.elemento} nivel ${drop.nivel}` : ''"></div>
-                    <div class="valor">Quedó en tu inventario.</div>
+                <div class="drop" x-show="drop && drop.length">
+                    <div style="font-weight:600;margin-bottom:6px" x-text="drop && drop.length > 1 ? `Botín: ${drop.length} piedras` : 'Botín'"></div>
+                    <template x-for="d in (drop || [])" :key="d.id">
+                        <div class="valor" x-text="`· gema de ${d.elemento} nivel ${d.nivel}`"></div>
+                    </template>
+                    <div class="valor" style="margin-top:4px">Quedó en tu inventario.</div>
                 </div>
                 <div style="margin-top:12px;text-align:center">
                     <button class="primario" x-show="resultado === 'victoria'" @click="seguir()">seguir</button>

@@ -36,8 +36,10 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 - [x] Render sobre `<canvas>`
 - [x] Movimiento local del mago (sin tocar el servidor)
 - [x] Campo de encuentros por celda (`EncuentroBuilder` + espejo JS + paridad), pintado
-      sobre el canvas — reemplaza el spawn provisional `1/20` (016)
-- [ ] Radio de visión / niebla
+      sobre el canvas — reemplaza el spawn provisional `1/20` (016). Tuneado en 019
+      (ambiente 1%, colmenas 1/250) + multi-drop
+- [x] Radio de visión / niebla (020): mapa en negro, rastro en gris, radio 1 con visión
+      total; marcas (llaves/puertas/salida) como faros visibles desde el arranque
 
 ## Fase 3 — Estado de partida y eventos
 

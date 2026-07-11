@@ -163,7 +163,9 @@ test('matar al monstruo registra el evento y deja el drop en el inventario', fun
 
     $response->assertOk()->assertJson(['ok' => true, 'resultado' => 'victoria']);
     expect($run->fresh()->combate)->toBeNull();
-    expect($run->fresh()->talisman['gemas'])->toHaveCount(2);
+    // Botín de una o más piedras (multi-drop): la gema previa + al menos una nueva.
+    expect(count($run->fresh()->talisman['gemas']))->toBeGreaterThanOrEqual(2);
+    expect($response->json('drop'))->toBeArray();
     expect(Event::where('run_id', $run->id)->where('tipo', 'combate_ganado')->exists())->toBeTrue();
 });
 

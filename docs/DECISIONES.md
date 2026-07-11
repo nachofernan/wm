@@ -442,3 +442,45 @@ el cliente decidiría cuánto pegó o si el bicho murió); mandar la semilla de 
 corrida (fieldear/guardar/desguazar→esencia→cap del /mago — hoy el drop cae al inventario y ahí
 queda); las **revividas** (hoy la derrota termina la partida, placeholder — docs/DISENO.md §4);
 puertas/llaves en el servidor (heredado de 017); la rueda elemental concreta (sigue placeholder).
+
+## 019 — Tuning del campo de encuentros + multi-drop — 2026-07-11
+**Decisión:** Ajuste de números del campo (016) y del botín, jugando.
+
+- **Ambiente 3% → 1%** y **densidad de colmenas 1/400 → 1/250 celdas** (`EncuentroBuilder`
+  + espejo JS). El piso parejo casi no dispara (la mayoría de los pasos son tranquilos) y las
+  colmenas son más frecuentes y marcadas: el peligro está *localizado*, no repartido.
+- **Un bicho puede soltar más de una piedra** (`MazeCombate::victoria`): la cantidad sale del
+  mismo PRNG de combate (determinista, replayable) y escala con la dificultad del monstruo.
+  `drop` pasa de gema única a **lista de gemas**.
+
+**Por qué:** El ambiente al 3% ahogaba de encuentros el mapa entero; bajarlo a 1% con colmenas
+más densas concentra la amenaza donde el campo la telegrafía. El multi-drop le da sentido a
+buscar los bichos difíciles.
+**Cascada asumida:** cambiar el campo **invalidó los seeds y hashes de paridad** — los 4 vectores
+de `EncuentroBuilderTest`/`encuentroBuilder.test.js` se regeneraron y recommitearon. Es el tipo de
+cambio destructivo que CLAUDE.md manda avisar. **Se descartó:** dejar el ambiente alto (mataba la
+exploración tranquila); drop siempre único (no premiaba la dificultad).
+
+## 020 — Niebla de guerra + números de combate a la vista — 2026-07-11
+**Decisión:** El mapa arranca en negro y se revela caminando; el combate muestra qué va a pasar.
+
+- **Niebla client-side** (`game.js`, `dibujarNiebla`): negro en lo no explorado, velo gris en el
+  rastro ya pisado, visión total en el radio Chebyshev 1 alrededor del mago. Se trackea `visitadas`
+  en el cliente (no viaja al servidor: es puro render).
+- **Las marcas son faros:** entrada, salida, puertas y llaves se dibujan **por encima** de la
+  niebla, visibles desde el arranque aunque no hayas llegado. Decisión explícita del usuario:
+  "quiero saber a dónde tengo que ir sin saber cómo llegar". La atmósfera de ocultarlas es otra
+  cosa y se verá más adelante; no ahora.
+- **Preview de combate en la vista** (`danioEstimado`/`costoBloqueoEstimado`, espejo de
+  `CombatResolver` con tirada media): el botón de atacar muestra `~N dmg` y el matchup (y se tiñe
+  verde/gris según ventaja/revés); el de bloquear muestra el costo en esencia. Más una caja fija
+  con la **rueda elemental** (quién le gana a quién). Es SOLO display — la resolución sigue en el
+  servidor (axioma 4); el cliente ya conoce el seed y el campo, mostrar el matchup no le da nada
+  que no tuviera.
+
+**Por qué:** Sin niebla el mapa se ve entero y no hay exploración; los faros dan objetivo sin
+regalar el camino. Los números a la vista hacen que la decisión de con qué gema pegar/bloquear sea
+informada en vez de a ciegas — que es donde vive el juego del talismán.
+**Se descartó:** ocultar también las llaves/puertas (se decidió mostrarlas por ahora); calcular el
+daño en el servidor para el preview (el cliente ya tiene todo lo necesario; un round-trip por hover
+sería absurdo).

@@ -20,9 +20,9 @@ const SEMILLA = 0x85ebca6b;
 // índice que consume el PRNG. Cambiarlo cambia todos los campos.
 export const ELEMENTOS = ['fuego', 'agua', 'tierra', 'aire'];
 
-export const AMBIENTE = 3; // piso de encuentro en toda celda (%), nunca cero — arranque
+export const AMBIENTE = 1; // piso de encuentro en toda celda (%), nunca cero — arranque
 export const DECAIMIENTO = 2; // cuánto cae la probabilidad por anillo (%)
-export const CELDAS_POR_NUCLEO = 400; // una colmena cada tantas celdas de área
+export const CELDAS_POR_NUCLEO = 250; // una colmena cada tantas celdas de área
 export const PICO_BASE = 10;
 export const PICO_VARIACION = 6;
 

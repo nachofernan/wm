@@ -23,6 +23,24 @@ const COLOR_MARCA = {
     llave: 'orange',
 };
 
+// Rueda elemental — espejo de CombatResolver::VENCE_A (PLACEHOLDER, docs/DISENO.md §3):
+// cada elemento le gana al que figura acá. Se usa SOLO para mostrar el matchup y
+// estimar daño/bloqueo en la vista; la resolución real la hace el servidor (axioma 4).
+const VENCE_A = { fuego: 'aire', aire: 'tierra', tierra: 'agua', agua: 'fuego' };
+
+// Números de arranque espejo de CombatResolver::DEFAULTS — solo para el preview.
+const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaja: 0.5, defNeutral: 1.0, defReves: 2.0 };
+
+// Radio de visión total alrededor del mago (Chebyshev). Fuera de acá está la niebla.
+const RADIO_VISION = 1;
+
+/** Relación del elemento a frente a b: 'ventaja' | 'reves' | 'neutral'. */
+function matchup(a, b) {
+    if (VENCE_A[a] === b) return 'ventaja';
+    if (VENCE_A[b] === a) return 'reves';
+    return 'neutral';
+}
+
 // Mismo mapeo de direcciones que el generador — docs/PROTOCOLO_GENERADOR.md §3.1
 const TECLAS = {
     ArrowUp: { nombre: 'N', dx: 0, dy: -1 },
@@ -55,6 +73,7 @@ export function game() {
         alto: 0,
         alturaPx: 0,
         mago: { x: 0, y: 0 },
+        visitadas: {}, // celdas ya pisadas ("x,y" → true): se dibujan en gris bajo la niebla
         puertasAbiertas: [],
         llavesRecogidas: [],
         salidaAbierta: false,
@@ -85,6 +104,7 @@ export function game() {
             this.alturaPx = alto * CELDA;
             this.puertasAbiertas = this.marcas.puertas.map(() => false);
             this.llavesRecogidas = this.marcas.llaves.map(() => false);
+            this.visitadas[`${this.mago.x},${this.mago.y}`] = true;
             this.$nextTick(() => this.dibujar());
         },
 
@@ -97,7 +117,6 @@ export function game() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             this.dibujarCampo(ctx);
-            this.dibujarMarcas(ctx);
 
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 2;
@@ -114,6 +133,13 @@ export function game() {
                 });
             });
             ctx.stroke();
+
+            // La niebla tapa el laberinto (paredes + tinte de encuentro) donde no
+            // hay visión: negro en lo no explorado, un velo gris en lo ya pisado.
+            // Se pinta ANTES de las marcas para que llaves/puertas queden como
+            // faros visibles por encima (docs/DECISIONES.md: objetivos a la vista).
+            this.dibujarNiebla(ctx);
+            this.dibujarMarcas(ctx);
 
             ctx.fillStyle = 'blue';
             ctx.beginPath();
@@ -142,6 +168,30 @@ export function game() {
                     ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
                 });
             });
+        },
+
+        /** ¿La celda (x,y) está dentro del radio de visión total del mago? */
+        visible(x, y) {
+            return Math.max(Math.abs(x - this.mago.x), Math.abs(y - this.mago.y)) <= RADIO_VISION;
+        },
+
+        /**
+         * Niebla de guerra (docs/DECISIONES.md): el mapa arranca en negro; solo
+         * se ve el radio del mago (RADIO_VISION alrededor) con detalle completo,
+         * y el rastro ya caminado queda en gris. Las marcas se dibujan aparte,
+         * por encima, así los objetivos (llaves/puertas/salida) se ven desde el
+         * arranque aunque no hayas llegado.
+         */
+        dibujarNiebla(ctx) {
+            for (let y = 0; y < this.alto; y++) {
+                for (let x = 0; x < this.ancho; x++) {
+                    if (this.visible(x, y)) continue; // radio: detalle completo
+                    ctx.fillStyle = this.visitadas[`${x},${y}`]
+                        ? 'rgba(120, 120, 135, 0.55)' // rastro: velo gris, el laberinto se intuye
+                        : '#0a0a0d'; // no explorado: negro
+                    ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
+                }
+            }
         },
 
         dibujarMarcas(ctx) {
@@ -199,6 +249,7 @@ export function game() {
             const previo = { x: this.mago.x, y: this.mago.y };
             this.mago.x = nx;
             this.mago.y = ny;
+            this.visitadas[`${nx},${ny}`] = true;
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
 
             const idxLlave = this.buscarLlave(nx, ny);
@@ -356,6 +407,31 @@ export function game() {
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
         poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
         anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
+
+        // ── Preview de combate (solo display; la resolución la hace el servidor) ──
+        // Daño estimado de atacar con la gema g al monstruo actual: tirada media,
+        // sin crítico. Espejo de CombatResolver::dano con variacion = 1.
+        danioEstimado(g) {
+            if (!this.combate) return 0;
+            const m = this.combate.monstruo;
+            const poder = g.nivel * COMBATE.F;
+            const mitig = COMBATE.K / (COMBATE.K + m.defensa);
+            const mult = COMBATE[matchup(g.elemento, m.elemento)];
+            return Math.max(1, Math.round(poder * mitig * mult));
+        },
+
+        // Costo en esencia de bloquear el golpe entrante con la gema g. Espejo de
+        // CombatResolver::costoBloqueo (el azar del bloqueo es chico; esto es la media).
+        costoBloqueoEstimado(g) {
+            if (!this.combate || !this.combate.entrante) return 0;
+            const factor = { ventaja: COMBATE.defVentaja, reves: COMBATE.defReves, neutral: COMBATE.defNeutral };
+            return Math.max(1, Math.round(this.combate.entrante.peso * factor[matchup(g.elemento, this.combate.entrante.elemento)]));
+        },
+
+        // Relación de la gema con el monstruo actual, para teñir el botón de ataque.
+        matchupAtaque(g) {
+            return this.combate ? matchup(g.elemento, this.combate.monstruo.elemento) : 'neutral';
+        },
 
         finalizar() {
             this.terminado = true;

@@ -61,10 +61,11 @@ test('un golpe letal mata al monstruo, cierra el combate y dropea una gema', fun
 
     expect($r['resultado'])->toBe('victoria');
     expect($r['combate'])->toBeNull();
-    expect($r['drop'])->not->toBeNull();
-    expect($r['talisman']['gemas'])->toHaveCount(2); // la original + el drop
+    // Multi-drop: una o más piedras según la dificultad del bicho.
+    expect($r['drop'])->toBeArray()->not->toBeEmpty();
+    expect(count($r['talisman']['gemas']))->toBeGreaterThanOrEqual(2); // la original + el/los drops
     expect($r['talisman']['bichosCaidos'])->toBe(1);
-    expect($r['talisman']['gemasJuntadas'])->toBe(1);
+    expect($r['talisman']['gemasJuntadas'])->toBe(count($r['drop']));
 });
 
 test('comer un golpe entrante baja la vida y vuelve a tu turno', function () {
