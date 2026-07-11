@@ -56,6 +56,11 @@ Notas de portabilidad (donde se rompe la paridad si uno se descuida):
   para emular shift lógico.
 - El test de paridad del PRNG (secuencia de N valores desde un seed fijo) es lo que atrapa
   cualquier divergencia acá antes de que llegue al laberinto.
+- **Rango del seed:** el estado es uint32, así que solo cuentan los 32 bits bajos del seed.
+  Los seeds que se generan para partidas van en `[0, 0xFFFFFFFF]` (`MapaBuilder::SEED_MAX`):
+  un seed mayor a 2^53 se **redondea** al meterlo en un `Number` de JS y sus 32 bits bajos
+  dejan de coincidir con los de PHP → otro laberinto en el cliente que en el servidor. Un
+  seed de 32 bits entra exacto en el double de JS y la paridad se sostiene.
 
 ### 2.1 Derivar un entero en rango `[0, n)`  — mod directo
 

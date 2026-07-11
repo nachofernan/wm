@@ -61,3 +61,14 @@ test('buscarSeed siempre devuelve un seed cuyas marcas son válidas', function (
     $matriz = MazeGenerator::generar($resultado['seed'], 30, 30);
     expect(MapaBuilder::marcas($matriz))->toBe($resultado['marcas']);
 });
+
+test('buscarSeed devuelve un seed que entra exacto en un double de JS', function () {
+    // Si el seed excede 2^53, el navegador lo redondea y genera otro laberinto
+    // que el del servidor (rompe la paridad). SEED_MAX (32 bits) lo garantiza.
+    for ($i = 0; $i < 20; $i++) {
+        $seed = MapaBuilder::buscarSeed(30, 30)['seed'];
+        expect($seed)->toBeGreaterThanOrEqual(0);
+        expect($seed)->toBeLessThanOrEqual(MapaBuilder::SEED_MAX);
+        expect($seed)->toBeLessThanOrEqual(PHP_INT_MAX & ((1 << 53) - 1));
+    }
+});

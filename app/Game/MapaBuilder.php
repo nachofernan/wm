@@ -79,6 +79,14 @@ final class MapaBuilder
     }
 
     /**
+     * El PRNG solo usa los 32 bits bajos del seed, así que este es el rango
+     * completo de seeds distinguibles. Además entra exacto en un double de JS
+     * (< 2^53): un seed más grande se redondea en el navegador y genera OTRO
+     * laberinto que el del servidor — rompía la paridad al primer paso.
+     */
+    public const SEED_MAX = 0xFFFFFFFF;
+
+    /**
      * Prueba seeds al azar hasta encontrar uno cuyo laberinto cumpla las
      * restricciones de diseño. El servidor es quien decide esto — el
      * cliente recibe el seed ya validado y solo recalcula las marcas.
@@ -88,7 +96,7 @@ final class MapaBuilder
     public static function buscarSeed(int $ancho, int $alto): array
     {
         do {
-            $seed = random_int(0, PHP_INT_MAX);
+            $seed = random_int(0, self::SEED_MAX);
             $matriz = MazeGenerator::generar($seed, $ancho, $alto);
             $marcas = self::marcas($matriz);
         } while (! self::esValido($marcas));
