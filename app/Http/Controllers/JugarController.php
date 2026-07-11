@@ -7,6 +7,7 @@ use App\Game\MapaBuilder;
 use App\Game\MazeCombate;
 use App\Game\MazeGenerator;
 use App\Game\Prng;
+use App\Game\Talisman;
 use App\Models\Run;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -173,6 +174,35 @@ class JugarController extends Controller
             'log' => $res['log'],
             'estado' => $this->estado($run),
         ]);
+    }
+
+    /**
+     * Gestión del talismán entre peleas (docs/DECISIONES.md 018): equipar,
+     * guardar, desguazar, subir cap. No se toca el loadout con un combate
+     * abierto — hay que resolverlo primero.
+     */
+    public function talisman(Request $request, string $token): JsonResponse
+    {
+        $run = Run::where('token', $token)->firstOrFail();
+
+        $datos = $request->validate([
+            'accion' => 'required|in:fieldear,guardar,desguazar,subirCap',
+            'gemaId' => 'nullable|integer',
+        ]);
+
+        if ($run->terminado || $run->combate !== null) {
+            return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $res = Talisman::aplicar($run->talisman, $datos['accion'], $datos['gemaId'] ?? null);
+
+        if ($res['error'] !== null) {
+            return response()->json(['ok' => false, 'motivo' => $res['error']], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $run->update(['talisman' => $res['talisman']]);
+
+        return response()->json(['ok' => true, 'estado' => $this->estado($run)]);
     }
 
     /**

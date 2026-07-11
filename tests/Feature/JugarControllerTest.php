@@ -167,6 +167,33 @@ test('matar al monstruo registra el evento y deja el drop en el inventario', fun
     expect(Event::where('run_id', $run->id)->where('tipo', 'combate_ganado')->exists())->toBeTrue();
 });
 
+test('fieldear una gema del inventario la equipa fuera de combate', function () {
+    $talisman = MazeCombate::talismanInicial();
+    $talisman['gemas'][2]['fieldeada'] = false; // dejo libre cap (saco la de tierra n3)
+    $talisman['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'esencia' => 12, 'fieldeada' => false];
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30, 'talisman' => $talisman,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/talisman", ['accion' => 'fieldear', 'gemaId' => 9]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    $equipada = collect($run->fresh()->talisman['gemas'])->firstWhere('id', 9);
+    expect($equipada['fieldeada'])->toBeTrue();
+});
+
+test('no se toca el talismán con un combate abierto', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+        'combate' => MazeCombate::iniciar(42, 5, 5, 'agua', 11, 0),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/talisman", ['accion' => 'guardar', 'gemaId' => 1]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
+});
+
 test('el paso que dispara un encuentro abre un combate en el estado', function () {
     // seed 42: (23,4) prob 11 (agua), y semilla_secreta=5 dispara en el paso 1.
     $run = Run::create([

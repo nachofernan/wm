@@ -87,6 +87,9 @@
                     <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>
                     <div class="stat">gemas<b x-text="talisman.gemasJuntadas"></b></div>
                 </div>
+                <div class="acciones" x-show="!combate">
+                    <button @click="subirCap()" :disabled="talisman.esencia < 5">+1 cap (5 es.)</button>
+                </div>
             </div>
 
             <div class="caja" x-show="talisman">
@@ -102,6 +105,9 @@
                         <div class="acciones" x-show="combate && combate.turno === 'defensa'">
                             <button @click="bloquear(g.id)" :disabled="g.esencia === 0">bloquear</button>
                         </div>
+                        <div class="acciones" x-show="!combate">
+                            <button @click="guardar(g.id)">guardar</button>
+                        </div>
                     </div>
                 </template>
             </div>
@@ -112,6 +118,10 @@
                     <div class="gema" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
                         <div class="cab"><span class="nom" x-text="g.elemento"></span><span class="valor" x-text="`nivel ${g.nivel}`"></span></div>
                         <div class="valor" x-text="`esencia ${g.esencia}`"></div>
+                        <div class="acciones" x-show="!combate">
+                            <button class="primario" @click="fieldear(g.id)" :disabled="!puedeFieldear(g)">fieldear</button>
+                            <button @click="desguazar(g.id)" x-text="`desguazar (+${g.nivel} es.)`"></button>
+                        </div>
                     </div>
                 </template>
             </div>

@@ -316,6 +316,33 @@ export function game() {
         comer() { this.accionCombate('comer'); },
         bloquear(id) { this.accionCombate('bloquear', id); },
 
+        // ── Talismán: armar el loadout entre peleas ────────────────────────
+        async accionTalisman(accion, gemaId = null) {
+            const respuesta = await fetch(`/jugar/${this.token}/talisman`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ accion, gemaId }),
+            });
+
+            if (!respuesta.ok) {
+                const err = await respuesta.json();
+                this.registrar(`✗ ${err.motivo}`);
+                return;
+            }
+
+            const datos = await respuesta.json();
+            this.aplicarEstado(datos.estado);
+        },
+
+        fieldear(id) { this.accionTalisman('fieldear', id); },
+        guardar(id) { this.accionTalisman('guardar', id); },
+        desguazar(id) { this.accionTalisman('desguazar', id); },
+        subirCap() { this.accionTalisman('subirCap'); },
+        puedeFieldear(g) { return this.talisman && this.capEnUso() + g.nivel <= this.talisman.cap; },
+
         // Cerrar el panel de botín y volver a caminar (la consola se conserva).
         seguir() {
             this.resultado = null;

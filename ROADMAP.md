@@ -55,9 +55,9 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 Depende de decisiones de diseño todavía abiertas (`docs/DISENO.md`). No se codea hasta
 que la mecánica esté cerrada.
 
-- [~] Economía del talismán (hoja de personaje persistida en la partida, 018;
-      poder = vida extirpado, 013). Falta la gestión in-run: fieldear/desguazar
-      →esencia→cap durante la corrida, y los números finos
+- [x] Economía del talismán (hoja persistida, 018; poder = vida extirpado, 013)
+      + gestión in-run: fieldear/guardar/desguazar→esencia→cap entre peleas
+      (`Talisman`). Faltan los números finos y el funguéo-% (015)
 - [x] Reglas de combate y costos (`CombatResolver`, 012) + combate en el maze
       resuelto por acción en el servidor (`MazeCombate`, 018)
 - [~] Comportamiento de monstruos: encuentros por celda (016) + ping con dado
