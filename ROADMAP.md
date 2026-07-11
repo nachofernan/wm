@@ -35,6 +35,8 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 - [x] `resources/js/game.js` — regenera el laberinto desde el seed y lo mantiene en memoria
 - [x] Render sobre `<canvas>`
 - [x] Movimiento local del mago (sin tocar el servidor)
+- [x] Campo de encuentros por celda (`EncuentroBuilder` + espejo JS + paridad), pintado
+      sobre el canvas — reemplaza el spawn provisional `1/20` (016)
 - [ ] Radio de visión / niebla
 
 ## Fase 3 — Estado de partida y eventos
@@ -53,9 +55,10 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 Depende de decisiones de diseño todavía abiertas (`docs/DISENO.md`). No se codea hasta
 que la mecánica esté cerrada.
 
-- [ ] Economía del talismán (poder = vida)
-- [ ] Reglas de combate y costos (`app/Game/Rules.php`)
-- [ ] Comportamiento de monstruos
+- [ ] Economía del talismán (hoja de personaje; poder = vida extirpado, ver 013)
+- [~] Reglas de combate y costos (`CombatResolver`, prototipado en `/pelea` y `/mago`)
+- [~] Comportamiento de monstruos: encuentros por celda ubicados (016, hecho);
+      falta el disparo secreto del servidor y el ping por paso
 - [ ] Contenido de cofres, llave, salida
 - [ ] Condición de victoria: salir *con algo*
 

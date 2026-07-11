@@ -124,12 +124,57 @@ Puntos donde la paridad se juega:
 - `randBelow` consume del PRNG exactamente las veces que dice §2.1. Un consumo de más o de
   menos desincroniza las dos secuencias para siempre.
 
-## 5. Ubicación de contenidos ❓
+## 5. Ubicación de contenidos
 
-Dónde caen la llave, la salida, los cofres y los monstruos **no está diseñado todavía**
-(depende de `DISENO.md`). Cuando se defina, se hace **también como función pura del seed**,
-consumiendo del mismo PRNG *después* de generar el laberinto, con su propio orden explícito.
-Hasta entonces, el generador produce solo la topología (paredes).
+La topología (paredes) es el corazón; encima van dos capas, cada una **función pura del
+seed** con su propio orden explícito.
+
+### 5.1 Marcas — entrada, salida, puertas, llaves (cerrado)
+
+No consumen el PRNG: se derivan de la topología por BFS (celda más lejana = salida,
+puertas y llaves por distancia sobre el camino). Viven en `MapaBuilder` / `mapaBuilder.js`,
+con su propio vector de paridad. Ver esos archivos.
+
+### 5.2 Campo de encuentros (cerrado, ver `DECISIONES.md` 016)
+
+Para cada celda, con qué **probabilidad** y de qué **elemento** puede saltar un monstruo.
+Es el **sesgo público** (se pinta: color = elemento, alpha = probabilidad); el **disparo**
+("¿saltó algo ahora?") es secreto del servidor y **no** sale de este contrato.
+
+Stream propio del PRNG, decorrelado del laberinto: `PRNG(seed XOR 0x85EBCA6B)`. Orden de
+consumo explícito:
+
+```
+campo(seed, W, H):
+    prng ← PRNG(seed XOR 0x85EBCA6B)
+    cantidad ← max(1, ⌊W·H / 400⌋)          # densidad de colmenas
+    nucleos ← []
+    repetir cantidad veces:                   # orden fijo, 4 draws por núcleo
+        x     ← randBelow(W)
+        y     ← randBelow(H)
+        elem  ← ELEMENTOS[ randBelow(4) ]      # ['fuego','agua','tierra','aire']
+        pico  ← 10 + randBelow(6)               # 10..15
+        nucleos.push({x, y, elem, pico})
+
+    campo ← toda celda {prob: 1, elem: null}   # piso de ambiente, nunca 0
+    por cada nucleo en orden:                   # sin PRNG a partir de acá
+        radio ← ⌊(pico - 1) / 2⌋
+        por cada celda a distancia Chebyshev ≤ radio (ATRAVIESA muros):
+            prob ← pico - 2·anillo
+            si prob > campo[celda].prob:         # estricto: 1er núcleo gana empates
+                campo[celda] ← {prob, elem}
+    campo[(0,0)] ← {prob: 0, elem: null}        # la entrada es segura
+```
+
+Notas de paridad:
+
+- `ELEMENTOS` es un orden de **ubicación**, no la rueda de ventaja de combate (que sigue
+  ❓, `DISENO.md` §3). Fija qué índice consume el PRNG; cambiarlo cambia todos los campos.
+- La distancia de las colmenas es de **grilla** (Chebyshev), no del grafo del laberinto:
+  por eso atraviesan muros (016).
+- **Hash del campo** (§6 análogo): dos bytes por celda, fila por fila — `prob` y código de
+  elemento (`0` = sin elemento, si no índice+1 en `ELEMENTOS`), SHA-256. Vive en
+  `EncuentroBuilder::hash()` / `encuentroHash.js`, con vector de paridad propio.
 
 ## 6. Hash del laberinto — para el test de paridad
 

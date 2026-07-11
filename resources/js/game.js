@@ -1,8 +1,19 @@
 import { generarLaberinto } from './maze.js';
 import { marcas as calcularMarcas } from './mapaBuilder.js';
+import { campo as calcularCampo } from './encuentroBuilder.js';
 import { crearPrng, randBelow } from './prng.js';
 
 const CELDA = 20; // px por celda en el canvas
+
+// Color del tinte de encuentro por elemento (docs/DECISIONES.md 016: color =
+// elemento, alpha = probabilidad). Las celdas de solo ambiente (sin elemento)
+// no se tiñen — el peligro parejo no se pinta, se sospecha.
+const COLOR_ELEMENTO = {
+    fuego: '220, 60, 40',
+    agua: '40, 120, 220',
+    tierra: '150, 110, 60',
+    aire: '200, 200, 230',
+};
 
 const COLOR_MARCA = {
     entrada: 'green',
@@ -41,6 +52,7 @@ export function game() {
         prngEncuentros: null,
         matriz: null,
         marcas: null,
+        campo: null,
         ancho: 0,
         alto: 0,
         alturaPx: 0,
@@ -60,6 +72,7 @@ export function game() {
             this.prngEncuentros = crearPrng(seed ^ 0x9E3779B9);
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
+            this.campo = calcularCampo(seed, ancho, alto);
             this.ancho = ancho;
             this.alto = alto;
             this.alturaPx = alto * CELDA;
@@ -76,6 +89,7 @@ export function game() {
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            this.dibujarCampo(ctx);
             this.dibujarMarcas(ctx);
 
             ctx.strokeStyle = 'black';
@@ -104,6 +118,23 @@ export function game() {
                 Math.PI * 2
             );
             ctx.fill();
+        },
+
+        /**
+         * Tiñe cada celda con su sesgo de encuentro: color = elemento de la
+         * colmena, alpha = probabilidad (docs/DECISIONES.md 016). Es el sesgo
+         * público; el disparo real lo esconde el servidor. Las celdas de solo
+         * ambiente no se pintan — el peligro parejo se sospecha, no se ve.
+         */
+        dibujarCampo(ctx) {
+            this.campo.celdas.forEach((fila, y) => {
+                fila.forEach((celda, x) => {
+                    if (!celda.elem) return;
+                    const alpha = Math.min(0.6, celda.prob / 20);
+                    ctx.fillStyle = `rgba(${COLOR_ELEMENTO[celda.elem]}, ${alpha})`;
+                    ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
+                });
+            });
         },
 
         dibujarMarcas(ctx) {
@@ -161,12 +192,15 @@ export function game() {
             const idxLlave = this.buscarLlave(nx, ny);
             const llaveSinRecoger = idxLlave !== -1 && !this.llavesRecogidas[idxLlave];
 
-            // Spawn de monstruos — modelo provisional, ver docs/DISENO.md §5
-            // (pendiente de revisar con el asesor). 1/20 por movimiento, y
-            // obligatorio al pisar una llave sin recoger (el guardián
-            // telegrafiado de docs/DECISIONES.md 011). Sin resolución de
-            // combate todavía: solo se registra el encuentro.
-            if (llaveSinRecoger || randBelow(this.prngEncuentros, 20) === 0) {
+            // Disparo de encuentro por celda (docs/DECISIONES.md 016): la
+            // probabilidad sale del campo (sesgo público, paritario), pero la
+            // tirada acá es un ATAJO de playground — en el juego real el dado es
+            // secreto del servidor y viaja en el ping por paso. Sigue siendo
+            // obligatorio al pisar una llave sin recoger (guardián telegrafiado,
+            // docs/DECISIONES.md 011). Sin resolución de combate todavía: solo
+            // se registra el encuentro.
+            const prob = this.campo.celdas[ny][nx].prob;
+            if (llaveSinRecoger || randBelow(this.prngEncuentros, 100) < prob) {
                 this.movimientos.push({ dir: 'encuentro', x: nx, y: ny });
             }
 
