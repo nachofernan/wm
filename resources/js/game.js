@@ -61,10 +61,20 @@ export function game() {
         terminado: false,
         movimientos: [],
 
+        // Estado de personaje y combate — verdad del servidor (axioma 4). El
+        // cliente solo renderiza lo que recibe y manda acciones.
+        talisman: null,
+        combate: null,
+        resultado: null, // 'victoria' | 'derrota' | null
+        drop: null,
+        logCombate: [],
+
         init() {
-            const { seed, ancho, alto, token } = window.__MAZE__;
+            const { seed, ancho, alto, token, estado } = window.__MAZE__;
             this.token = token;
             this.seed = seed;
+            this.talisman = estado.talisman;
+            this.combate = estado.combate;
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.campo = calcularCampo(seed, ancho, alto);
@@ -163,7 +173,9 @@ export function game() {
         },
 
         mover(evento) {
-            if (this.terminado) return;
+            // No se camina con un combate abierto ni con un drop sin resolver:
+            // la pelea (y su botín) frenan la marcha (docs/DECISIONES.md 018).
+            if (this.terminado || this.combate || this.resultado) return;
 
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
@@ -237,10 +249,61 @@ export function game() {
             }
 
             const datos = await respuesta.json();
+            this.aplicarEstado(datos.estado);
             if (datos.encuentro) {
                 this.movimientos.push({ dir: 'encuentro', ...datos.encuentro });
+                this.logCombate = [`¡te salta ${this.combate.monstruo.nombre}! (${this.combate.monstruo.elemento})`];
             }
         },
+
+        // ── Combate: cada acción viaja al servidor, que la resuelve ────────
+        aplicarEstado(estado) {
+            if (!estado) return;
+            this.talisman = estado.talisman;
+            this.combate = estado.combate;
+        },
+
+        async accionCombate(accion, gemaId = null) {
+            const respuesta = await fetch(`/jugar/${this.token}/combate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ accion, gemaId }),
+            });
+
+            if (!respuesta.ok) {
+                const err = await respuesta.json();
+                this.logCombate.push(err.motivo);
+                return;
+            }
+
+            const datos = await respuesta.json();
+            (datos.log || []).forEach((l) => this.logCombate.push(l.txt));
+            this.aplicarEstado(datos.estado);
+            this.resultado = datos.resultado;
+            this.drop = datos.drop;
+            if (datos.resultado === 'derrota') this.terminado = true;
+        },
+
+        atacar(id) { this.accionCombate('atacar', id); },
+        comer() { this.accionCombate('comer'); },
+        bloquear(id) { this.accionCombate('bloquear', id); },
+
+        // Cerrar el panel de botín y volver a caminar.
+        seguir() {
+            this.resultado = null;
+            this.drop = null;
+            this.logCombate = [];
+        },
+
+        // ── Derivados de la hoja de personaje ──────────────────────────────
+        fieldeadas() { return this.talisman ? this.talisman.gemas.filter((g) => g.fieldeada) : []; },
+        inventario() { return this.talisman ? this.talisman.gemas.filter((g) => !g.fieldeada) : []; },
+        capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
+        poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
+        anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
 
         finalizar() {
             this.terminado = true;

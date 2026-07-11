@@ -22,10 +22,14 @@ class Run extends Model
         'pos_y',
         'pasos',
         'semilla_secreta',
+        'talisman',
+        'combate',
     ];
 
     protected $casts = [
         'terminado' => 'boolean',
+        'talisman' => 'array',
+        'combate' => 'array',
     ];
 
     public function events(): HasMany

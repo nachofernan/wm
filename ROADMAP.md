@@ -55,11 +55,14 @@ Nada de lo de abajo empieza hasta que esto esté en verde.
 Depende de decisiones de diseño todavía abiertas (`docs/DISENO.md`). No se codea hasta
 que la mecánica esté cerrada.
 
-- [ ] Economía del talismán (hoja de personaje; poder = vida extirpado, ver 013)
-- [~] Reglas de combate y costos (`CombatResolver`, prototipado en `/pelea` y `/mago`)
-- [~] Comportamiento de monstruos: encuentros por celda ubicados (016) + ping por
-      paso con dado secreto del servidor (017, hecho); falta resolver el combate
-      cuando el encuentro salta, y llevar puertas/llaves al servidor
+- [~] Economía del talismán (hoja de personaje persistida en la partida, 018;
+      poder = vida extirpado, 013). Falta la gestión in-run: fieldear/desguazar
+      →esencia→cap durante la corrida, y los números finos
+- [x] Reglas de combate y costos (`CombatResolver`, 012) + combate en el maze
+      resuelto por acción en el servidor (`MazeCombate`, 018)
+- [~] Comportamiento de monstruos: encuentros por celda (016) + ping con dado
+      secreto (017) + combate al saltar el encuentro (018, hecho). Falta llevar
+      puertas/llaves al servidor y las revividas tras derrota
 - [ ] Contenido de cofres, llave, salida
 - [ ] Condición de victoria: salir *con algo*
 

@@ -410,3 +410,35 @@ juego); mandar el dado o su semilla al cliente (lo predeciría). **Pendiente (no
 puertas/llaves en el servidor — hoy la validación del paso es adyacencia + pared (más laxa, nunca
 incorrecta: no rechaza cruzar una puerta que el cliente considera cerrada); y **resolver el
 combate dentro del maze** cuando el encuentro salta (el encuentro hoy solo se registra).
+
+## 018 — Combate en el maze con ida y vuelta; hoja de personaje persistida — 2026-07-11
+**Decisión:** Implementa el combate dentro del laberinto (Fase 4, cierra el loop
+caminar → encuentro → pelea → botín) y trae la hoja de personaje a la partida real.
+
+- **La pelea la resuelve el servidor, acción por acción** (concreta 016). El encuentro que
+  dispara el ping (017) abre un combate: el monstruo, su vida, el daño, la muerte y el drop se
+  derivan y deciden en el servidor. El cliente **no tiene ninguna verdad de combate** (axioma 4):
+  manda `{accion, gemaId}` a `POST /jugar/{token}/combate` y recibe el estado nuevo.
+- **`MazeCombate`** (app/Game/, puro y testeable sin DB) orquesta: deriva el monstruo de la celda
+  como función del seed (arquetipo por elemento del encuentro, vida escalada por la probabilidad),
+  resuelve cada turno reusando `CombatResolver` (la autoridad del daño, 012), y genera el drop al
+  matarlo. La **semilla de combate** sale de `(seed, celda, índice del encuentro)` y **nunca viaja
+  al cliente** — el estado que se devuelve está curado (sin semilla ni contador de pasos).
+- **El talismán se persiste en la caché `runs`** (columna `talisman`): la hoja de personaje real
+  (vida, cap, esencia, gemas, progreso), arrancando con el mago inicial (Fuego n5/Agua n4/Tierra
+  n3). El combate activo vive en `combate` (o null). Ambos son proyección chica (axioma 5).
+- **La hoja aparece en la partida** (`resources/views/jugar.blade.php`): vida, poder del talismán,
+  gemas fieldeadas e inventario, siempre visibles; el combate se resuelve en un panel al lado del
+  canvas. No se camina con un combate abierto ni con un botín sin cerrar.
+
+**Por qué:** Era la meta desde el arranque de Fase 4: sentir el loop "consigo una gema, la peleo,
+decido qué hago con ella". Poner toda la resolución en el servidor con semilla propia respeta el
+axioma 4 (nunca confiar en el cliente para daño/muerte/botín) sin volver la pelea un ladrillo: el
+movimiento sigue local, solo las acciones de combate viajan. Persistir el talismán hace que los
+drops se acumulen de verdad entre encuentros.
+**Se descartó:** resolver el combate en el cliente y que el server "guarde y liste" (toqueteable —
+el cliente decidiría cuánto pegó o si el bicho murió); mandar la semilla de combate al cliente
+(predeciría críticos). **Pendiente (no en este paso):** la gestión del talismán *durante* la
+corrida (fieldear/guardar/desguazar→esencia→cap del /mago — hoy el drop cae al inventario y ahí
+queda); las **revividas** (hoy la derrota termina la partida, placeholder — docs/DISENO.md §4);
+puertas/llaves en el servidor (heredado de 017); la rueda elemental concreta (sigue placeholder).

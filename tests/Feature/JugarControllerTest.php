@@ -1,5 +1,6 @@
 <?php
 
+use App\Game\MazeCombate;
 use App\Models\Event;
 use App\Models\Run;
 
@@ -104,6 +105,68 @@ test('el dado secreto puede no disparar: paso legal sin encuentro ni evento', fu
 
     $response->assertOk()->assertJson(['ok' => true, 'encuentro' => null]);
     expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
+});
+
+test('combate sin combate activo es rechazado', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 1]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'sin combate']);
+});
+
+test('atacar en combate baja la vida del monstruo y devuelve el estado', function () {
+    $talisman = MazeCombate::talismanInicial();
+    $combate = MazeCombate::iniciar(1, 5, 5, 'tierra', 0, 0);
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'talisman' => $talisman, 'combate' => $combate,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 1]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    $estado = $response->json('estado');
+    expect($estado['combate']['monstruo']['vida'])->toBeLessThan(70);
+    // El estado que ve el cliente nunca expone la semilla de combate (axioma 4).
+    expect($estado['combate'])->not->toHaveKey('semilla');
+    expect($estado['combate'])->not->toHaveKey('paso');
+});
+
+test('matar al monstruo registra el evento y deja el drop en el inventario', function () {
+    // Gema sobrada vs sílfide: un golpe letal cierra el combate con victoria.
+    $talisman = MazeCombate::talismanInicial();
+    $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'esencia' => 999, 'fieldeada' => true]];
+    $combate = MazeCombate::iniciar(1, 5, 5, 'aire', 0, 0);
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'talisman' => $talisman, 'combate' => $combate,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 99]);
+
+    $response->assertOk()->assertJson(['ok' => true, 'resultado' => 'victoria']);
+    expect($run->fresh()->combate)->toBeNull();
+    expect($run->fresh()->talisman['gemas'])->toHaveCount(2);
+    expect(Event::where('run_id', $run->id)->where('tipo', 'combate_ganado')->exists())->toBeTrue();
+});
+
+test('el paso que dispara un encuentro abre un combate en el estado', function () {
+    // seed 42: (23,4) prob 11 (agua), y semilla_secreta=5 dispara en el paso 1.
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 23, 'pos_y' => 5, 'semilla_secreta' => 5,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('estado.combate.monstruo.elemento'))->toBe('agua');
+    expect($run->fresh()->combate)->not->toBeNull();
 });
 
 test('salir es legal cuando la posición coincide con la salida del seed', function () {
