@@ -122,7 +122,7 @@
             <div class="caja" x-show="talisman">
                 <div class="inv-head">
                     <h2 style="margin:0">Gemas fieldeadas</h2>
-                    <select x-model="ordenField" class="orden">
+                    <select x-model="ordenField" @change="reordenarField()" class="orden">
                         <option value="nivel">↓ nivel</option>
                         <option value="esencia">↓ esencia</option>
                         <option value="elemento">↓ tipo</option>

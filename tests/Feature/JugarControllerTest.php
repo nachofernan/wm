@@ -5,7 +5,7 @@ use App\Models\Event;
 use App\Models\Run;
 
 test('crear arranca una partida y redirige a la url con token', function () {
-    $response = $this->get('/jugar');
+    $response = $this->get('/');
 
     $response->assertRedirect();
     $run = Run::sole();

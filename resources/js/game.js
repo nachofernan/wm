@@ -97,6 +97,8 @@ export function game() {
         filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
         ordenInv: 'nivel', // 'nivel' | 'esencia' | 'elemento'
         ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'esencia' | 'elemento'
+        ordenFieldIds: [], // orden CONGELADO de las fieldeadas (ids); solo se recalcula al cambiar
+                           // el select o el set fieldeado — nunca por un ataque que baje esencia
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -433,8 +435,23 @@ export function game() {
             return this.ordenarGemas(g, this.ordenInv);
         },
 
-        // Gemas fieldeadas ordenadas (sin filtro): el talismán se lee de un vistazo.
-        fieldeadasMostradas() { return this.ordenarGemas(this.fieldeadas(), this.ordenField); },
+        // Recalcula el orden congelado de las fieldeadas. Se llama SOLO desde el
+        // onchange del select: ni al equipar/guardar ni al atacar. Si se reordenara
+        // en vivo, bajar la esencia de una gema la haría saltar de lugar en plena
+        // pelea, que es justo lo molesto que se quiere evitar.
+        reordenarField() {
+            this.ordenFieldIds = this.ordenarGemas(this.fieldeadas(), this.ordenField).map((g) => g.id);
+        },
+
+        // Gemas fieldeadas en el orden congelado. Las que no estén en la lista
+        // (recién equipadas) caen al final hasta el próximo reordenamiento.
+        fieldeadasMostradas() {
+            const pos = (id) => {
+                const i = this.ordenFieldIds.indexOf(id);
+                return i === -1 ? Infinity : i;
+            };
+            return [...this.fieldeadas()].sort((a, b) => pos(a.id) - pos(b.id));
+        },
 
         // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
         conteoInv(elem) { return this.inventario().filter((g) => g.elemento === elem).length; },
