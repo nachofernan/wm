@@ -509,3 +509,43 @@ arranque (3:1 y 1:1), tuning.
 `cuantoCura`) y la vista (costo de vida en el botón de atacar, botón `curar` en la hoja). Tests
 nuevos en los tres `app/Game/`. **Se descartó:** penalidad 2:1 (se eligió 3:1, más dura); curar en
 combate (quedó solo fuera, para no volver trivial el "sanar antes de comer el golpe").
+
+## 022 — El cliente maneja el movimiento; el servidor resuelve y persiste — 2026-07-11
+**Decisión (revisa los axiomas 3 y 4):** El ping por paso se elimina. Caminar y la tirada de
+encuentro pasan a ser 100% del cliente; el servidor solo interviene en eventos discretos
+(abrir combate, resolver combate, salir). Motivo: en un servidor chico (1 CPU, 1 GB) el
+round-trip por paso, con dos regeneraciones de grid por request y el gate que serializaba el
+movimiento a un-paso-por-latencia, hacía injugable caminar.
+
+- **Movimiento local, sin server.** El cliente ya era optimista; ahora directamente no pinguea
+  cada paso. Camina, actualiza la niebla, y tira el dado de encuentro él mismo (PRNG del
+  proyecto sobre seed+celda+pasos). Instantáneo.
+- **El dado de encuentro deja de ser secreto.** Antes vivía en el servidor (semilla_secreta)
+  para que el disparo no se predijera. Se acepta perder esa sorpresa: es single player sin
+  stakes, y encuentros deterministas+públicos encajan MEJOR con el pilar cerrado de
+  **planificación** (DISENO §2) — ves el campo pintado y ruteás — que el dado oculto, que
+  arrastraba sabor de deducción (descartada como primaria).
+- **El servidor sigue siendo autoridad de combate (axioma 4 intacto donde importa).** Cuando
+  el cliente decide que saltó un bicho, llama a `POST /encuentro` con la celda y los pasos; el
+  servidor deriva el monstruo del seed (no confía en el cliente para eso), abre el combate y lo
+  persiste. Atacar/bloquear/comer siguen resolviéndose en el servidor. Lo que se resigna es la
+  validación de legalidad *por paso* (axioma 3): la posición se cree salvo chequeos de borde
+  (dentro del grid, celda con riesgo). Tradeoff consciente: sin stakes, un cliente toqueteado
+  solo se hace trampa a sí mismo.
+- **Persistencia lazy.** La posición se guarda al abrir combate y al salir; entre peleas no.
+  Cerrar la pestaña reanuda en la última pelea. La niebla (visitadas) queda client-side por
+  ahora (DISENO §3 la quiere persistida; queda pendiente, no bloquea).
+
+**Cascada:** desaparece `POST /paso` (y `pasoLegal`/`tirarEncuentro`); nace `POST /encuentro`.
+`semilla_secreta` queda vestigial. Tests de paso reescritos a encuentro. Cliente: se saca el
+ping por paso, entra la tirada local y `abrirCombate`.
+**Se descartó:** C (cliente motor entero, combate incluido) — over-engineering para un juego sin
+stakes, obligaba a combate en dos lenguajes con test de paridad. A (solo cachear + pipeline de
+pings) — paliativo: traía encuentros tarde, rompía el "la pelea te frena acá".
+
+## 023 — Spinner en los botones que esperan al servidor — 2026-07-11
+**Decisión:** Todo botón que dispara una llamada al servidor (combate, talismán, salir) muestra
+un spinner mientras la respuesta está en vuelo, y el resto de los botones se deshabilitan hasta
+que vuelve. **Por qué:** en el servidor chico las llamadas discretas que quedan (combate) igual
+tardan; sin feedback el jugador clickea dos veces o cree que se colgó. Un `cargando` global
+bloquea acciones concurrentes y `accionActiva` marca cuál botón gira.

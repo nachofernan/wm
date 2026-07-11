@@ -1,6 +1,7 @@
 import { generarLaberinto } from './maze.js';
 import { marcas as calcularMarcas } from './mapaBuilder.js';
 import { campo as calcularCampo } from './encuentroBuilder.js';
+import { crearPrng, randBelow } from './prng.js';
 
 const CELDA = 20; // px por celda en el canvas
 
@@ -76,6 +77,7 @@ export function game() {
         alto: 0,
         alturaPx: 0,
         mago: { x: 0, y: 0 },
+        pasos: 0, // pasos caminados: alimenta la tirada local de encuentro y el índice del monstruo
         visitadas: {}, // celdas ya pisadas ("x,y" → true): se dibujan en gris bajo la niebla
         puertasAbiertas: [],
         llavesRecogidas: [],
@@ -90,7 +92,10 @@ export function game() {
         resultado: null, // 'victoria' | 'derrota' | null
         drop: null,
         consola: [],
-        enviando: false, // hay un ping de paso en vuelo — no se manda otro
+        // Una llamada al servidor en vuelo: bloquea acciones concurrentes y prende
+        // el spinner. accionActiva marca CUÁL botón gira (DECISIONES.md 023).
+        cargando: false,
+        accionActiva: null,
 
         // Filtro y orden del inventario, y orden de las fieldeadas (puro cliente,
         // no viaja al servidor). Mayores siempre arriba.
@@ -236,11 +241,10 @@ export function game() {
         },
 
         mover(evento) {
-            // No se camina con un combate abierto ni con un drop sin resolver:
-            // la pelea (y su botín) frenan la marcha (docs/DECISIONES.md 018).
-            // Tampoco con un ping en vuelo: un paso a la vez, para no mandar
-            // pasos fuera de orden y desincronizar la posición con el servidor.
-            if (this.terminado || this.combate || this.resultado || this.enviando) return;
+            // No se camina con un combate abierto, con un drop sin resolver, ni
+            // con una llamada al servidor en vuelo (abrir combate): la pelea frena
+            // la marcha. El movimiento en sí ya no espera al servidor (022).
+            if (this.terminado || this.combate || this.resultado || this.cargando) return;
 
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
@@ -257,9 +261,9 @@ export function game() {
 
             if (this.esSalida(nx, ny) && !this.salidaAbierta) return; // salida cerrada
 
-            const previo = { x: this.mago.x, y: this.mago.y };
             this.mago.x = nx;
             this.mago.y = ny;
+            this.pasos += 1;
             this.visitadas[`${nx},${ny}`] = true;
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
 
@@ -279,62 +283,42 @@ export function game() {
                 }
             }
 
-            // El encuentro RANDOM ya no lo tira el cliente: el paso sube al
-            // servidor, que valida y tira el dado secreto (docs/DECISIONES.md
-            // 016). La salida es terminal y la maneja finalizar()/salir.
+            // Caminar y tirar el encuentro son locales ahora (022): la salida es
+            // terminal; si no, el cliente tira su propio dado y solo llama al
+            // servidor si saltó un bicho.
+            this.dibujar();
             if (this.esSalida(nx, ny)) {
                 this.finalizar();
-            } else {
-                this.pingPaso(nx, ny, previo);
+            } else if (this.tirarEncuentro(nx, ny)) {
+                this.abrirCombate(nx, ny);
             }
-
-            this.dibujar();
         },
 
         /**
-         * Ping por paso (docs/DECISIONES.md 016): sube el paso al servidor, que
-         * es la autoridad. El movimiento ya se dibujó (optimista); acá solo se
-         * reacciona a lo que el servidor decide. Si el servidor rechaza el paso
-         * (cliente toqueteado o desincronizado) se avisa por consola — el
-         * cliente honesto nunca lo ve, porque regenera el mismo laberinto.
-         * Si el dado secreto disparó un encuentro, se registra (el combate
-         * dentro del maze es el próximo escalón).
+         * Dado de encuentro, ahora del cliente (docs/DECISIONES.md 022): el sesgo
+         * (prob) sale del campo paritario; la tirada es determinista y pública
+         * (seed + celda + pasos con el PRNG del proyecto). Perdió el secreto, pero
+         * a cambio caminar es instantáneo y encaja con el pilar de planificación.
          */
-        async pingPaso(x, y, previo) {
-            this.enviando = true;
-            let respuesta;
-            try {
-                respuesta = await fetch(`/jugar/${this.token}/paso`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                    },
-                    body: JSON.stringify({ x, y }),
-                });
-            } finally {
-                this.enviando = false;
-            }
-
-            if (!respuesta.ok) {
-                // Desync o paso ilegal: el servidor manda. Volvemos el mago a la
-                // celda confirmada y redibujamos.
-                this.mago.x = previo.x;
-                this.mago.y = previo.y;
-                this.registrar(`✗ paso rechazado, vuelvo a (${previo.x},${previo.y})`);
-                this.dibujar();
-                return;
-            }
-
-            const datos = await respuesta.json();
+        tirarEncuentro(x, y) {
             const prob = this.campo.celdas[y][x].prob;
+            if (!prob) return false;
+            const semilla = (this.seed ^ (x * 73856093) ^ (y * 19349663) ^ (this.pasos * 83492791)) >>> 0;
+            return randBelow(crearPrng(semilla), 100) < prob;
+        },
+
+        /**
+         * Saltó un bicho: sube la celda al servidor, que deriva el monstruo del
+         * seed (autoridad de combate, axioma 4) y abre el combate. Es la única
+         * llamada al servidor que corta la caminata.
+         */
+        async abrirCombate(x, y) {
+            const prob = this.campo.celdas[y][x].prob;
+            const datos = await this.pedir(`/jugar/${this.token}/encuentro`, { x, y, pasos: this.pasos }, 'encuentro');
+            if (!datos) return;
             this.aplicarEstado(datos.estado);
-            if (datos.encuentro) {
-                this.movimientos.push({ dir: 'encuentro', ...datos.encuentro });
-                this.registrar(`paso a (${x},${y}) · riesgo ${prob}% · ⚔ ¡te salta ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento})!`);
-            } else {
-                this.registrar(`paso a (${x},${y}) · riesgo ${prob}% · nada`);
-            }
+            this.movimientos.push({ dir: 'encuentro', x, y });
+            this.registrar(`⚔ (${x},${y}) riesgo ${prob}% · ¡te salta ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento})!`);
         },
 
         // ── Consola ────────────────────────────────────────────────────────
@@ -343,30 +327,49 @@ export function game() {
             if (this.consola.length > 200) this.consola.shift();
         },
 
-        // ── Combate: cada acción viaja al servidor, que la resuelve ────────
         aplicarEstado(estado) {
             if (!estado) return;
             this.talisman = estado.talisman;
             this.combate = estado.combate;
         },
 
-        async accionCombate(accion, gemaId = null) {
-            const respuesta = await fetch(`/jugar/${this.token}/combate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify({ accion, gemaId }),
-            });
-
-            if (!respuesta.ok) {
-                const err = await respuesta.json();
-                this.registrar(`✗ ${err.motivo}`);
-                return;
+        /**
+         * Única puerta al servidor (DECISIONES.md 022/023). Marca `cargando` y
+         * `accionActiva` (spinner del botón), hace el POST y devuelve el JSON, o
+         * null si falló (lo registra en consola). El `finally` siempre apaga el
+         * estado de carga, así un error de red no deja los botones colgados.
+         */
+        async pedir(url, cuerpo, clave) {
+            this.cargando = true;
+            this.accionActiva = clave;
+            try {
+                const respuesta = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body: JSON.stringify(cuerpo),
+                });
+                const datos = await respuesta.json().catch(() => ({}));
+                if (!respuesta.ok) {
+                    this.registrar(`✗ ${datos.motivo ?? 'rechazado por el servidor'}`);
+                    return null;
+                }
+                return datos;
+            } catch {
+                this.registrar('✗ sin respuesta del servidor');
+                return null;
+            } finally {
+                this.cargando = false;
+                this.accionActiva = null;
             }
+        },
 
-            const datos = await respuesta.json();
+        // ── Combate: cada acción viaja al servidor, que la resuelve ────────
+        async accionCombate(accion, gemaId = null) {
+            const datos = await this.pedir(`/jugar/${this.token}/combate`, { accion, gemaId }, `${accion}-${gemaId ?? ''}`);
+            if (!datos) return;
             (datos.log || []).forEach((l) => this.registrar(l.txt));
             this.aplicarEstado(datos.estado);
             this.resultado = datos.resultado;
@@ -380,22 +383,8 @@ export function game() {
 
         // ── Talismán: armar el loadout entre peleas ────────────────────────
         async accionTalisman(accion, gemaId = null) {
-            const respuesta = await fetch(`/jugar/${this.token}/talisman`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify({ accion, gemaId }),
-            });
-
-            if (!respuesta.ok) {
-                const err = await respuesta.json();
-                this.registrar(`✗ ${err.motivo}`);
-                return;
-            }
-
-            const datos = await respuesta.json();
+            const datos = await this.pedir(`/jugar/${this.token}/talisman`, { accion, gemaId }, `${accion}-${gemaId ?? ''}`);
+            if (!datos) return;
             this.aplicarEstado(datos.estado);
         },
 
@@ -520,14 +509,7 @@ export function game() {
         },
 
         async enviarSalida() {
-            await fetch(`/jugar/${this.token}/salir`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify({ x: this.mago.x, y: this.mago.y }),
-            });
+            await this.pedir(`/jugar/${this.token}/salir`, { x: this.mago.x, y: this.mago.y }, 'salir');
         },
     };
 }

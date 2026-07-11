@@ -26,98 +26,66 @@ test('mostrar devuelve 404 para un token que no existe', function () {
     $response->assertStatus(404);
 });
 
-test('paso legal actualiza la posición y avanza el contador', function () {
-    // seed 42, 30x30: desde (23,5) el paso Norte a (23,4) tiene la pared abierta.
+test('un encuentro en una celda con riesgo abre combate y persiste posición y pasos', function () {
+    // seed 42: (23,4) tiene prob 11 (agua). El cliente ya decidió que saltó; el
+    // servidor deriva el monstruo, lo abre y guarda la posición (022).
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'semilla_secreta' => 0,
+        'talisman' => MazeCombate::talismanInicial(),
     ]);
 
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
+    $response = $this->postJson("/jugar/{$run->token}/encuentro", ['x' => 23, 'y' => 4, 'pasos' => 1]);
 
     $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('estado.combate.monstruo.elemento'))->toBe('agua');
     $run->refresh();
     expect($run->pos_x)->toBe(23);
     expect($run->pos_y)->toBe(4);
     expect($run->pasos)->toBe(1);
+    expect($run->combate)->not->toBeNull();
+    $evento = Event::where('run_id', $run->id)->where('tipo', 'encuentro')->first();
+    expect($evento->payload)->toBe(['x' => 23, 'y' => 4, 'elem' => 'agua', 'prob' => 11]);
 });
 
-test('paso a través de una pared cerrada es ilegal y no mueve nada', function () {
-    // seed 42: desde la entrada (0,0) el Sur (0,1) tiene pared cerrada.
+test('un encuentro en una celda sin riesgo (prob 0) es ilegal', function () {
+    // La entrada (0,0) tiene prob forzada a 0: no puede saltar nada ahí.
     $run = Run::create(['token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30]);
 
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 0, 'y' => 1]);
+    $response = $this->postJson("/jugar/{$run->token}/encuentro", ['x' => 0, 'y' => 0, 'pasos' => 0]);
 
-    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'ilegal']);
-    $run->refresh();
-    expect($run->pos_x)->toBe(0);
-    expect($run->pos_y)->toBe(0);
-    expect($run->pasos)->toBe(0);
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'celda sin riesgo']);
+    expect($run->fresh()->combate)->toBeNull();
     expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
 });
 
-test('paso a una celda no adyacente es ilegal', function () {
+test('un encuentro fuera del grid es ilegal', function () {
     $run = Run::create(['token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30]);
 
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 5, 'y' => 5]);
+    $response = $this->postJson("/jugar/{$run->token}/encuentro", ['x' => 30, 'y' => 0, 'pasos' => 1]);
 
-    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'ilegal']);
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'fuera del grid']);
 });
 
-test('paso en una partida terminada es ilegal', function () {
+test('un encuentro en una partida terminada es ilegal', function () {
     $run = Run::create([
-        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'terminado' => true,
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30, 'terminado' => true,
     ]);
 
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
+    $response = $this->postJson("/jugar/{$run->token}/encuentro", ['x' => 23, 'y' => 4, 'pasos' => 1]);
 
     $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'terminada']);
 });
 
-test('el dado secreto dispara un encuentro y lo registra como evento', function () {
-    // seed 42: (23,4) tiene prob 11 (agua). Con semilla_secreta=5 el dado salta
-    // en el paso 1 — escenario determinista, ver el script de tuning.
+test('un encuentro con un combate ya abierto es rechazado', function () {
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'semilla_secreta' => 5,
-    ]);
-
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
-
-    $response->assertOk()->assertJson([
-        'ok' => true,
-        'encuentro' => ['x' => 23, 'y' => 4, 'elem' => 'agua', 'prob' => 11],
-    ]);
-    $evento = Event::where('run_id', $run->id)->where('tipo', 'encuentro')->first();
-    expect($evento)->not->toBeNull();
-    expect($evento->payload)->toBe(['x' => 23, 'y' => 4, 'elem' => 'agua', 'prob' => 11]);
-});
-
-test('el dado secreto puede no disparar: paso legal sin encuentro ni evento', function () {
-    // Mismo paso, pero semilla_secreta=0 no dispara en el paso 1.
-    $run = Run::create([
-        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'semilla_secreta' => 0,
-    ]);
-
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
-
-    $response->assertOk()->assertJson(['ok' => true, 'encuentro' => null]);
-    expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
-});
-
-test('un paso con un combate abierto es rechazado (hay que pelear primero)', function () {
-    $run = Run::create([
-        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'talisman' => MazeCombate::talismanInicial(),
+        'talisman' => MazeCombate::talismanInicial(),
         'combate' => MazeCombate::iniciar(42, 23, 5, 'agua', 11, 0),
     ]);
 
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
+    $response = $this->postJson("/jugar/{$run->token}/encuentro", ['x' => 23, 'y' => 4, 'pasos' => 1]);
 
     $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
-    expect($run->fresh()->pos_y)->toBe(5); // no se movió
 });
 
 test('combate sin combate activo es rechazado', function () {
@@ -194,21 +162,6 @@ test('no se toca el talismán con un combate abierto', function () {
     $response = $this->postJson("/jugar/{$run->token}/talisman", ['accion' => 'guardar', 'gemaId' => 1]);
 
     $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
-});
-
-test('el paso que dispara un encuentro abre un combate en el estado', function () {
-    // seed 42: (23,4) prob 11 (agua), y semilla_secreta=5 dispara en el paso 1.
-    $run = Run::create([
-        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
-        'pos_x' => 23, 'pos_y' => 5, 'semilla_secreta' => 5,
-        'talisman' => MazeCombate::talismanInicial(),
-    ]);
-
-    $response = $this->postJson("/jugar/{$run->token}/paso", ['x' => 23, 'y' => 4]);
-
-    $response->assertOk()->assertJson(['ok' => true]);
-    expect($response->json('estado.combate.monstruo.elemento'))->toBe('agua');
-    expect($run->fresh()->combate)->not->toBeNull();
 });
 
 test('salir es legal cuando la posición coincide con la salida del seed', function () {

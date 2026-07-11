@@ -59,6 +59,19 @@
         button.ataque { background: #4a2f2f; border-color: #6f4444; }
         button.ataque.ventaja { background: #2f4a33; border-color: #4c7a55; }
         button.ataque.reves { background: #3a3540; border-color: #55505f; opacity: 0.85; }
+        /* Botón esperando al servidor (023): oculta el texto y gira un spinner. */
+        button.enviando { color: transparent !important; position: relative; pointer-events: none; }
+        button.enviando::after {
+            content: ''; position: absolute; inset: 0; margin: auto;
+            width: 12px; height: 12px; border: 2px solid var(--texto);
+            border-right-color: transparent; border-radius: 50%; animation: giro 0.6s linear infinite;
+        }
+        @keyframes giro { to { transform: rotate(360deg); } }
+        .sync { font-size: 12px; color: var(--tenue); display: inline-flex; align-items: center; gap: 6px; }
+        .sync::before {
+            content: ''; width: 11px; height: 11px; border: 2px solid var(--tenue);
+            border-right-color: transparent; border-radius: 50%; animation: giro 0.6s linear infinite;
+        }
         .rueda .rueda-ciclo { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 13px; }
         .rueda .el { padding: 2px 7px; border-radius: 5px; text-transform: capitalize; font-weight: 600; }
         .rueda .el.fuego { background: #3a221a; color: var(--fuego); }
@@ -103,10 +116,13 @@
             <div class="caja hoja" x-show="talisman">
                 <div class="hoja-cab">
                     <h3 style="margin:0">El mago</h3>
-                    <div class="hoja-acc" x-show="!combate">
-                        <button class="mini-btn" @click="curar()" :disabled="talisman.esencia < 1 || talisman.vida >= talisman.vidaMax"
+                    <span class="sync" x-show="cargando" x-cloak>sincronizando…</span>
+                    <div class="hoja-acc" x-show="!combate && !cargando">
+                        <button class="mini-btn" @click="curar()" :class="{ enviando: accionActiva === 'curar-' }"
+                            :disabled="cargando || talisman.esencia < 1 || talisman.vida >= talisman.vidaMax"
                             title="convertir esencia en vida (1:1)" x-text="`curar +${cuantoCura()}`"></button>
-                        <button class="mini-btn" @click="subirCap()" :disabled="talisman.esencia < 5" title="subir cap del talismán (5 es.)">+1 cap</button>
+                        <button class="mini-btn" @click="subirCap()" :class="{ enviando: accionActiva === 'subirCap-' }"
+                            :disabled="cargando || talisman.esencia < 5" title="subir cap del talismán (5 es.)">+1 cap</button>
                     </div>
                 </div>
                 <div class="stat-grid">
@@ -136,15 +152,15 @@
                         </div>
                         <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="acciones" x-show="combate && combate.turno === 'tuTurno'">
-                            <button class="ataque" :class="matchupAtaque(g)" @click="atacar(g.id)"
+                            <button class="ataque" :class="[matchupAtaque(g), { enviando: accionActiva === `atacar-${g.id}` }]" :disabled="cargando" @click="atacar(g.id)"
                                 x-text="`atacar · ~${danioEstimado(g)} dmg · ${costoAtaqueLabel(g)} (${matchupAtaque(g)})`"></button>
                         </div>
                         <div class="acciones" x-show="combate && combate.turno === 'defensa'">
-                            <button @click="bloquear(g.id)" :disabled="g.esencia === 0"
+                            <button @click="bloquear(g.id)" :class="{ enviando: accionActiva === `bloquear-${g.id}` }" :disabled="cargando || g.esencia === 0"
                                 x-text="`bloquear · ${costoBloqueoEstimado(g)} es. (${matchupBloqueo(g)})`"></button>
                         </div>
                         <div class="acciones" x-show="!combate">
-                            <button @click="guardar(g.id)">guardar</button>
+                            <button @click="guardar(g.id)" :class="{ enviando: accionActiva === `guardar-${g.id}` }" :disabled="cargando">guardar</button>
                         </div>
                     </div>
                 </template>
@@ -173,8 +189,8 @@
                         <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
                         <span class="valor esc" x-text="`${g.esencia} es`"></span>
                         <div class="acciones-fila" x-show="!combate">
-                            <button class="primario mini-btn" @click="fieldear(g.id)" :disabled="!puedeFieldear(g)" title="equipar">▲</button>
-                            <button class="mini-btn" @click="desguazar(g.id)" :title="`desguazar (+${g.nivel} es.)`" x-text="`+${g.nivel}`"></button>
+                            <button class="primario mini-btn" @click="fieldear(g.id)" :class="{ enviando: accionActiva === `fieldear-${g.id}` }" :disabled="cargando || !puedeFieldear(g)" title="equipar">▲</button>
+                            <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} es.)`" x-text="`+${g.nivel}`"></button>
                         </div>
                     </div>
                 </template>
@@ -207,7 +223,7 @@
                         <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
                             <div style="font-weight:600;margin-bottom:6px" x-text="`Golpe entrante: ${combate.entrante ? combate.entrante.dano : ''} (${combate.entrante ? combate.entrante.elemento : ''})${combate.entrante && combate.entrante.critico ? ' ¡CRÍTICO!' : ''}`"></div>
                             <div class="valor" style="margin-bottom:8px">Bloqueá con una gema (barato con el elemento que le gana) o comé el golpe.</div>
-                            <button class="ataque" @click="comer()" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} a la vida`"></button>
+                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} a la vida`"></button>
                         </div>
                     </div>
                 </template>
