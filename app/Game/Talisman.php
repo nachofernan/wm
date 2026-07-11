@@ -32,6 +32,7 @@ final class Talisman
             'guardar' => self::guardar($talisman, $gemaId),
             'desguazar' => self::desguazar($talisman, $gemaId),
             'subirCap' => self::subirCap($talisman),
+            'curar' => self::curar($talisman),
             default => self::error($talisman, 'acción desconocida'),
         };
     }
@@ -85,6 +86,27 @@ final class Talisman
         }
         $talisman['esencia'] -= self::COSTO_CAP;
         $talisman['cap'] += 1;
+
+        return self::ok($talisman);
+    }
+
+    /**
+     * Convierte esencia pura en vida, 1:1 (DECISIONES.md 021). Solo fuera de
+     * combate (el controlador ya lo garantiza). No desperdicia: sana lo mínimo
+     * entre la esencia que tenés y lo que te falta para el tope de vida.
+     */
+    private static function curar(array $talisman): array
+    {
+        if ($talisman['esencia'] <= 0) {
+            return self::error($talisman, 'sin esencia');
+        }
+        if ($talisman['vida'] >= $talisman['vidaMax']) {
+            return self::error($talisman, 'vida llena');
+        }
+
+        $sana = min($talisman['esencia'], $talisman['vidaMax'] - $talisman['vida']);
+        $talisman['esencia'] -= $sana;
+        $talisman['vida'] += $sana;
 
         return self::ok($talisman);
     }

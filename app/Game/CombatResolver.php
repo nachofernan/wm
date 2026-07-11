@@ -22,7 +22,7 @@ final class CombatResolver
     public const DEFAULTS = [
         'F' => 3,          // poder = nivel * F
         'K' => 50,         // mordida de la defensa: mitigacion = K / (K + defensa)
-        'C' => 2,          // último sacudón desde gema extinta: vida = nivel * C
+        'vidaPorEsencia' => 3, // pagar esencia faltante con vida: vida = faltante * esto (penalidad)
         'critProb' => 10,  // % de crítico
         'critMult' => 1.75,
         'bandaMin' => 0.85,
@@ -142,10 +142,16 @@ final class CombatResolver
         return max(1, (int) round($peso * $factor));
     }
 
-    /** Costo en vida del último sacudón de una gema extinta (esencia 0): nivel × C. */
-    public function costoUltimoSacudon(int $nivel): int
+    /**
+     * Costo en vida de cubrir un faltante de esencia al atacar (DECISIONES.md 021):
+     * cada punto de esencia que la gema no tiene se paga a `vidaPorEsencia` de vida.
+     * Cubre tanto la gema extinta (faltante = nivel entero) como el pago parcial
+     * (le queda algo de esencia y el resto sale de la vida). Generaliza el viejo
+     * "último sacudón" (012, nivel × C).
+     */
+    public function costoVida(int $faltante): int
     {
-        return $nivel * (int) $this->reglas['C'];
+        return max(0, $faltante) * (int) $this->reglas['vidaPorEsencia'];
     }
 
     private function mitigacion(int $defensa): float

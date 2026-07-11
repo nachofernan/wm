@@ -484,3 +484,28 @@ informada en vez de a ciegas — que es donde vive el juego del talismán.
 **Se descartó:** ocultar también las llaves/puertas (se decidió mostrarlas por ahora); calcular el
 daño en el servidor para el preview (el cliente ya tiene todo lo necesario; un round-trip por hover
 sería absurdo).
+
+## 021 — Pagar hechizos con vida (parcial) + curarse con esencia — 2026-07-11
+**Decisión:** La vida entra en la economía de combate por los dos lados: se puede gastar para
+seguir atacando sin esencia, y se puede recomprar con esencia entre peleas.
+
+- **Pago parcial con vida al atacar** (`MazeCombate::resolver`, `CombatResolver::costoVida`):
+  atacar cuesta esencia igual al nivel de la gema; si la esencia **no alcanza**, se gasta la que
+  haya y **el faltante se paga con vida a 3:1** (cada punto de esencia faltante = 3 de vida). Esto
+  **generaliza y reemplaza el "último sacudón"** de la 012 (gema extinta → `nivel × C`, C=2): ahora
+  la gema extinta es solo el caso donde el faltante es el nivel entero (`nivel × 3`), y la gema con
+  algo de esencia paga solo la diferencia. La constante `C` sale; entra `vidaPorEsencia = 3`.
+- **Curar fuera de combate** (`Talisman::curar`): convierte **esencia pura → vida, 1:1**, hasta el
+  tope de vida. No malgasta (sana el mínimo entre la esencia que tenés y lo que te falta) y **no se
+  puede curar con un combate abierto** (el controlador ya lo bloquea, como el resto del talismán).
+
+**Por qué:** Cierra el bucle de atrición que el diseño pedía (013: la vida se gasta *por decisión*
+en combate). Pagar con vida es la salida desesperada cuando la gema correcta está seca — con
+penalidad para que sea un recurso, no un plan. Curar 1:1 le da un uso a la esencia pura que compite
+con subir cap: ¿progreso o supervivencia? Es la clase de decisión donde vive el juego. Números de
+arranque (3:1 y 1:1), tuning.
+**Cascada:** tocó el combate autoritativo (`CombatResolver`, `MazeCombate`), la gestión de talismán
+(`Talisman`, validación del endpoint), el espejo de preview en JS (`game.js`: `costoVidaAtaque`,
+`cuantoCura`) y la vista (costo de vida en el botón de atacar, botón `curar` en la hoja). Tests
+nuevos en los tres `app/Game/`. **Se descartó:** penalidad 2:1 (se eligió 3:1, más dura); curar en
+combate (quedó solo fuera, para no volver trivial el "sanar antes de comer el golpe").

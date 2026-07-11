@@ -42,6 +42,31 @@ test('atacar baja la vida del monstruo, gasta esencia y pasa a defensa', functio
     expect($r['combate']['entrante'])->not->toBeNull();
 });
 
+test('atacar con esencia insuficiente paga el faltante con vida (3:1) y vacía la gema', function () {
+    // Gema nivel 5 con 2 de esencia: castear cuesta 5, faltan 3 → 9 de vida.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 2, 'fieldeada' => true]);
+    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['esencia'])->toBe(0);   // se drenó lo que tenía
+    expect($r['talisman']['vida'])->toBe(40 - 9);             // 3 faltantes × 3
+    expect($r['combate']['monstruo']['vida'])->toBeLessThan(70); // el golpe salió igual
+});
+
+test('atacar con una gema extinta paga nivel × 3 de vida', function () {
+    // Gema nivel 4 en 0: faltante = 4 → 12 de vida.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'esencia' => 0, 'fieldeada' => true]);
+    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['vida'])->toBe(40 - 12);
+    expect($r['combate']['monstruo']['vida'])->toBeLessThan(70);
+});
+
 test('atacar fuera de turno es un error', function () {
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 20, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);

@@ -6,7 +6,7 @@ use App\Game\Talisman;
 /** Talismán inicial con una gema suelta en el inventario para probar el swap. */
 function talismanConInventario(): array
 {
-    $t = MazeCombate::talismanInicial(); // 3 fieldeadas (5+4+3 = 12 = cap)
+    $t = MazeCombate::talismanInicial(); // 4 fieldeadas (3×4 = 12 = cap)
     $t['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'esencia' => 12, 'fieldeada' => false];
 
     return $t;
@@ -66,4 +66,44 @@ test('subir cap sin esencia suficiente es rechazado', function () {
     $r = Talisman::aplicar(MazeCombate::talismanInicial(), 'subirCap', null);
 
     expect($r['error'])->toBe('esencia insuficiente');
+});
+
+test('curar convierte esencia en vida 1:1', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['vida'] = 30;      // faltan 10 para el tope (40)
+    $t['esencia'] = 6;
+
+    $r = Talisman::aplicar($t, 'curar', null);
+
+    expect($r['talisman']['vida'])->toBe(36);    // +6
+    expect($r['talisman']['esencia'])->toBe(0);  // −6
+});
+
+test('curar no se pasa del tope de vida ni malgasta esencia', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['vida'] = 38;      // faltan 2 para el tope
+    $t['esencia'] = 10;
+
+    $r = Talisman::aplicar($t, 'curar', null);
+
+    expect($r['talisman']['vida'])->toBe(40);    // llega al tope
+    expect($r['talisman']['esencia'])->toBe(8);  // solo gastó 2
+});
+
+test('curar sin esencia es rechazado', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['vida'] = 20;
+
+    $r = Talisman::aplicar($t, 'curar', null);
+
+    expect($r['error'])->toBe('sin esencia');
+});
+
+test('curar con la vida llena es rechazado', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['esencia'] = 5; // vida ya en el tope
+
+    $r = Talisman::aplicar($t, 'curar', null);
+
+    expect($r['error'])->toBe('vida llena');
 });

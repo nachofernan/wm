@@ -49,8 +49,10 @@ test('el bloqueo nunca cuesta menos de 1 de esencia', function () {
     expect(resolver()->costoBloqueo(1, 'agua', 'fuego'))->toBe(1); // 1*0.5=0.5 → piso 1
 });
 
-test('el último sacudón cuesta nivel × C de vida', function () {
-    expect(resolver()->costoUltimoSacudon(5))->toBe(10); // C=2
+test('cubrir esencia faltante con vida cuesta faltante × penalidad', function () {
+    expect(resolver()->costoVida(5))->toBe(15); // gema extinta nivel 5: 5 × 3
+    expect(resolver()->costoVida(2))->toBe(6);  // faltan 2 de esencia: 2 × 3
+    expect(resolver()->costoVida(0))->toBe(0);  // no falta nada: sin costo
 });
 
 test('golpe cobra esencia igual al nivel de la gema', function () {

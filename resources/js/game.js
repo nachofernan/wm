@@ -32,7 +32,7 @@ const VENCE_A = { fuego: 'aire', aire: 'tierra', tierra: 'agua', agua: 'fuego' }
 const ELEMENTOS = ['fuego', 'agua', 'tierra', 'aire'];
 
 // Números de arranque espejo de CombatResolver::DEFAULTS — solo para el preview.
-const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaja: 0.5, defNeutral: 1.0, defReves: 2.0 };
+const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaja: 0.5, defNeutral: 1.0, defReves: 2.0, vidaPorEsencia: 3 };
 
 // Radio de visión total alrededor del mago (Chebyshev). Fuera de acá está la niebla.
 const RADIO_VISION = 1;
@@ -92,9 +92,11 @@ export function game() {
         consola: [],
         enviando: false, // hay un ping de paso en vuelo — no se manda otro
 
-        // Filtro y orden del inventario (puro cliente, no viaja al servidor).
+        // Filtro y orden del inventario, y orden de las fieldeadas (puro cliente,
+        // no viaja al servidor). Mayores siempre arriba.
         filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
         ordenInv: 'nivel', // 'nivel' | 'esencia' | 'elemento'
+        ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'esencia' | 'elemento'
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -399,6 +401,7 @@ export function game() {
         guardar(id) { this.accionTalisman('guardar', id); },
         desguazar(id) { this.accionTalisman('desguazar', id); },
         subirCap() { this.accionTalisman('subirCap'); },
+        curar() { this.accionTalisman('curar'); },
         puedeFieldear(g) { return this.talisman && this.capEnUso() + g.nivel <= this.talisman.cap; },
 
         // Cerrar el panel de botín y volver a caminar (la consola se conserva).
@@ -412,18 +415,26 @@ export function game() {
         fieldeadas() { return this.talisman ? this.talisman.gemas.filter((g) => g.fieldeada) : []; },
         inventario() { return this.talisman ? this.talisman.gemas.filter((g) => !g.fieldeada) : []; },
 
-        // Inventario ya filtrado por elemento y ordenado (nivel/esencia desc,
-        // o elemento por la rueda). Es lo que se pinta; no muta el talismán.
-        inventarioMostrado() {
-            let g = this.inventario();
-            if (this.filtroInv) g = g.filter((x) => x.elemento === this.filtroInv);
+        // Comparadores de gemas — mayores siempre arriba; elemento por la rueda.
+        // Compartido por el inventario y las fieldeadas del talismán.
+        ordenarGemas(lista, clave) {
             const orden = {
                 nivel: (a, b) => b.nivel - a.nivel || b.esencia - a.esencia,
                 esencia: (a, b) => b.esencia - a.esencia || b.nivel - a.nivel,
                 elemento: (a, b) => ELEMENTOS.indexOf(a.elemento) - ELEMENTOS.indexOf(b.elemento) || b.nivel - a.nivel,
             };
-            return [...g].sort(orden[this.ordenInv]);
+            return [...lista].sort(orden[clave]);
         },
+
+        // Inventario filtrado por elemento y ordenado. Es lo que se pinta; no muta el talismán.
+        inventarioMostrado() {
+            let g = this.inventario();
+            if (this.filtroInv) g = g.filter((x) => x.elemento === this.filtroInv);
+            return this.ordenarGemas(g, this.ordenInv);
+        },
+
+        // Gemas fieldeadas ordenadas (sin filtro): el talismán se lee de un vistazo.
+        fieldeadasMostradas() { return this.ordenarGemas(this.fieldeadas(), this.ordenField); },
 
         // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
         conteoInv(elem) { return this.inventario().filter((g) => g.elemento === elem).length; },
@@ -431,6 +442,27 @@ export function game() {
         // Golpes que aún banca una gema: cada ataque cuesta su nivel en esencia.
         // Es lo que de verdad importa mirar (no la barra): cuántos casteos quedan.
         golpesRestantes(g) { return Math.floor(g.esencia / (g.nivel || 1)); },
+
+        // Llenado de la barra de esencia: esencia relativa a una carga llena de
+        // drop (nivel × 6). Referencial — cuánto le queda de su máximo típico.
+        anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
+
+        // Etiqueta del costo de atacar: esencia si alcanza, o "X es +Y vida" cuando
+        // el faltante se paga con vida a la penalidad de la 021. Espejo de MazeCombate.
+        costoAtaqueLabel(g) {
+            const costo = g.nivel; // atacar cuesta esencia = nivel
+            if (g.esencia >= costo) return `−${costo} es.`;
+            const vida = (costo - g.esencia) * COMBATE.vidaPorEsencia;
+            return g.esencia > 0 ? `−${g.esencia} es +${vida} vida` : `−${vida} vida`;
+        },
+
+        // Cuánta vida repone curar ahora: esencia pura → vida 1:1, sin pasarse del
+        // tope. 0 si no hay esencia o la vida está llena. Espejo de Talisman::curar.
+        cuantoCura() {
+            if (!this.talisman) return 0;
+            return Math.min(this.talisman.esencia, this.talisman.vidaMax - this.talisman.vida);
+        },
+
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
         poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
 
@@ -457,6 +489,11 @@ export function game() {
         // Relación de la gema con el monstruo actual, para teñir el botón de ataque.
         matchupAtaque(g) {
             return this.combate ? matchup(g.elemento, this.combate.monstruo.elemento) : 'neutral';
+        },
+
+        // Relación de la gema con el golpe entrante, para el botón de bloqueo.
+        matchupBloqueo(g) {
+            return this.combate && this.combate.entrante ? matchup(g.elemento, this.combate.entrante.elemento) : 'neutral';
         },
 
         finalizar() {

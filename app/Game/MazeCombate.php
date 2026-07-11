@@ -30,7 +30,7 @@ final class MazeCombate
         'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'nivelAtaque' => 5, 'peso' => 1, 'dificultad' => 2],
     ];
 
-    /** Hoja de personaje inicial (DECISIONES 010/011): Fuego n5, Agua n4, Tierra n3. */
+    /** Hoja de personaje inicial: una gema n3 de cada elemento (4 × 3 = 12 = cap). */
     public static function talismanInicial(): array
     {
         return [
@@ -40,11 +40,12 @@ final class MazeCombate
             'cap' => 12,
             'esencia' => 0,
             'gemas' => [
-                ['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 20, 'fieldeada' => true],
-                ['id' => 2, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 15, 'fieldeada' => true],
-                ['id' => 3, 'elemento' => 'tierra', 'nivel' => 3, 'esencia' => 20, 'fieldeada' => true],
+                ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
+                ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
+                ['id' => 3, 'elemento' => 'tierra', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
+                ['id' => 4, 'elemento' => 'aire', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
             ],
-            'proximoId' => 4,
+            'proximoId' => 5,
             'bichosCaidos' => 0,
             'gemasJuntadas' => 0,
         ];
@@ -119,16 +120,22 @@ final class MazeCombate
 
             if ($g['esencia'] >= $r['costoEsencia']) {
                 self::gastarGema($talisman, $gemaId, $r['costoEsencia']);
-                $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
                 $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} — {$r['dano']} de daño ({$r['matchup']}, −{$r['costoEsencia']} es.)", 'crit' => $r['critico']];
-            } elseif ($g['esencia'] === 0) {
-                $costoVida = (new CombatResolver(new Prng(0)))->costoUltimoSacudon($g['nivel']);
-                $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
-                $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
-                $log[] = ['txt' => "ÚLTIMO SACUDÓN con {$g['elemento']} extinta — {$r['dano']} de daño, pagás {$costoVida} de vida", 'crit' => $r['critico']];
             } else {
-                return $error("{$g['elemento']} tiene {$g['esencia']} de esencia; castear cuesta {$r['costoEsencia']}");
+                // Esencia insuficiente: se gasta la que haya y el faltante se paga
+                // con vida a la penalidad de la 021 (cubre la gema extinta y el
+                // pago parcial en una sola regla).
+                $faltante = $r['costoEsencia'] - $g['esencia'];
+                $costoVida = (new CombatResolver(new Prng(0)))->costoVida($faltante);
+                if ($g['esencia'] > 0) {
+                    self::gastarGema($talisman, $gemaId, $g['esencia']);
+                }
+                $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
+                $detalle = $g['esencia'] > 0 ? "{$g['esencia']} es. + {$costoVida} de vida" : "{$costoVida} de vida";
+                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} sin esencia — {$r['dano']} de daño ({$r['matchup']}), pagás {$detalle}", 'crit' => $r['critico']];
             }
+
+            $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
 
             if ($combate['monstruo']['vida'] <= 0) {
                 return self::victoria($combate, $talisman, $log);

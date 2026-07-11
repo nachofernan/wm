@@ -259,10 +259,14 @@
             return { id: idGema, elemento, nivel, esencia, fieldeada: false };
         }
 
-        // Mago fijo inicial (DECISIONES 010/011): Fuego n5, Agua n4, Tierra n3.
-        // La suma de niveles fieldeados (12) llena justo el cap inicial.
+        // Mago fijo inicial: una gema n3 de cada elemento (4 × 3 = 12 = cap).
         function magoInicial() {
-            const g = [crearGema('fuego', 5, 20), crearGema('agua', 4, 15), crearGema('tierra', 3, 20)];
+            const g = [
+                crearGema('fuego', 3, 18),
+                crearGema('agua', 3, 18),
+                crearGema('tierra', 3, 18),
+                crearGema('aire', 3, 18),
+            ];
             g.forEach((x) => { x.fieldeada = true; });
             return g;
         }
