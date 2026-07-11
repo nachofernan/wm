@@ -29,6 +29,23 @@
         .gema.fuego { border-left-color: var(--fuego); } .gema.agua { border-left-color: var(--agua); }
         .gema.tierra { border-left-color: var(--tierra); } .gema.aire { border-left-color: var(--aire); }
         .gema.inerte { opacity: 0.55; }
+        .gema.mini { padding: 6px 9px; margin-bottom: 5px; }
+        .barra-cont.slim { height: 6px; margin: 4px 0 0; }
+        .esencia-num { font-size: 12px; color: var(--esencia); font-weight: 600; }
+        .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+        .punto.fuego { background: var(--fuego); } .punto.agua { background: var(--agua); }
+        .punto.tierra { background: var(--tierra); } .punto.aire { background: var(--aire); }
+        /* filas compactas del inventario */
+        .inv-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .orden { background: var(--caja2); color: var(--texto); border: 1px solid var(--linea); border-radius: 6px; padding: 3px 6px; font-size: 12px; font-family: inherit; }
+        .filtros { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
+        .chip { padding: 3px 8px; font-size: 12px; display: flex; align-items: center; gap: 3px; }
+        .chip.on { border-color: var(--texto); background: #33323d; }
+        .gema.fila { display: flex; align-items: center; gap: 8px; padding: 5px 9px; margin-bottom: 4px; border-left-width: 3px; }
+        .gema.fila .nom { flex: 1; font-size: 13px; text-transform: capitalize; white-space: nowrap; }
+        .gema.fila .esc { color: var(--esencia); }
+        .acciones-fila { display: flex; gap: 4px; margin: 0; }
+        .mini-btn { padding: 3px 8px; font-size: 12px; line-height: 1; }
         .gema .cab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
         .gema .nom { font-weight: 600; text-transform: capitalize; }
         .acciones { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
@@ -112,10 +129,12 @@
             <div class="caja" x-show="talisman">
                 <h2>Gemas fieldeadas</h2>
                 <template x-for="g in fieldeadas()" :key="g.id">
-                    <div class="gema" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
-                        <div class="cab"><span class="nom" x-text="g.elemento"></span><span class="valor" x-text="`nivel ${g.nivel}`"></span></div>
-                        <div class="barra-cont"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
-                        <div class="valor" x-text="`esencia ${g.esencia}${g.esencia === 0 ? ' — inerte' : ''}`"></div>
+                    <div class="gema mini" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
+                        <div class="cab">
+                            <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
+                            <span class="esencia-num" x-text="g.esencia === 0 ? 'inerte' : `${g.esencia} es · ~${golpesRestantes(g)} golpes`"></span>
+                        </div>
+                        <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="acciones" x-show="combate && combate.turno === 'tuTurno'">
                             <button class="ataque" :class="matchupAtaque(g)" @click="atacar(g.id)"
                                 x-text="`atacar · ~${danioEstimado(g)} dmg (${matchupAtaque(g)})`"></button>
@@ -132,14 +151,30 @@
             </div>
 
             <div class="caja" x-show="talisman && inventario().length">
-                <h2>Inventario</h2>
-                <template x-for="g in inventario()" :key="g.id">
-                    <div class="gema" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
-                        <div class="cab"><span class="nom" x-text="g.elemento"></span><span class="valor" x-text="`nivel ${g.nivel}`"></span></div>
-                        <div class="valor" x-text="`esencia ${g.esencia}`"></div>
-                        <div class="acciones" x-show="!combate">
-                            <button class="primario" @click="fieldear(g.id)" :disabled="!puedeFieldear(g)">fieldear</button>
-                            <button @click="desguazar(g.id)" x-text="`desguazar (+${g.nivel} es.)`"></button>
+                <div class="inv-head">
+                    <h2 style="margin:0">Inventario (<span x-text="inventario().length"></span>)</h2>
+                    <select x-model="ordenInv" class="orden">
+                        <option value="nivel">↓ nivel</option>
+                        <option value="esencia">↓ esencia</option>
+                        <option value="elemento">por elemento</option>
+                    </select>
+                </div>
+                <div class="filtros">
+                    <button class="chip" :class="filtroInv === null ? 'on' : ''" @click="filtroInv = null">todos</button>
+                    <template x-for="el in ['fuego','agua','tierra','aire']" :key="el">
+                        <button class="chip" :class="[el, filtroInv === el ? 'on' : '']" x-show="conteoInv(el)"
+                            @click="filtroInv = filtroInv === el ? null : el">
+                            <span class="punto" :class="el"></span><span x-text="conteoInv(el)"></span>
+                        </button>
+                    </template>
+                </div>
+                <template x-for="g in inventarioMostrado()" :key="g.id">
+                    <div class="gema fila" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
+                        <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
+                        <span class="valor esc" x-text="`${g.esencia} es`"></span>
+                        <div class="acciones-fila" x-show="!combate">
+                            <button class="primario mini-btn" @click="fieldear(g.id)" :disabled="!puedeFieldear(g)" title="equipar">▲</button>
+                            <button class="mini-btn" @click="desguazar(g.id)" :title="`desguazar (+${g.nivel} es.)`" x-text="`+${g.nivel}`"></button>
                         </div>
                     </div>
                 </template>

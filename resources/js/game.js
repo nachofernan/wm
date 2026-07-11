@@ -28,6 +28,9 @@ const COLOR_MARCA = {
 // estimar daño/bloqueo en la vista; la resolución real la hace el servidor (axioma 4).
 const VENCE_A = { fuego: 'aire', aire: 'tierra', tierra: 'agua', agua: 'fuego' };
 
+// Orden canónico para filtros/ordenamiento del inventario.
+const ELEMENTOS = ['fuego', 'agua', 'tierra', 'aire'];
+
 // Números de arranque espejo de CombatResolver::DEFAULTS — solo para el preview.
 const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaja: 0.5, defNeutral: 1.0, defReves: 2.0 };
 
@@ -88,6 +91,10 @@ export function game() {
         drop: null,
         consola: [],
         enviando: false, // hay un ping de paso en vuelo — no se manda otro
+
+        // Filtro y orden del inventario (puro cliente, no viaja al servidor).
+        filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
+        ordenInv: 'nivel', // 'nivel' | 'esencia' | 'elemento'
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -404,6 +411,26 @@ export function game() {
         // ── Derivados de la hoja de personaje ──────────────────────────────
         fieldeadas() { return this.talisman ? this.talisman.gemas.filter((g) => g.fieldeada) : []; },
         inventario() { return this.talisman ? this.talisman.gemas.filter((g) => !g.fieldeada) : []; },
+
+        // Inventario ya filtrado por elemento y ordenado (nivel/esencia desc,
+        // o elemento por la rueda). Es lo que se pinta; no muta el talismán.
+        inventarioMostrado() {
+            let g = this.inventario();
+            if (this.filtroInv) g = g.filter((x) => x.elemento === this.filtroInv);
+            const orden = {
+                nivel: (a, b) => b.nivel - a.nivel || b.esencia - a.esencia,
+                esencia: (a, b) => b.esencia - a.esencia || b.nivel - a.nivel,
+                elemento: (a, b) => ELEMENTOS.indexOf(a.elemento) - ELEMENTOS.indexOf(b.elemento) || b.nivel - a.nivel,
+            };
+            return [...g].sort(orden[this.ordenInv]);
+        },
+
+        // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
+        conteoInv(elem) { return this.inventario().filter((g) => g.elemento === elem).length; },
+
+        // Golpes que aún banca una gema: cada ataque cuesta su nivel en esencia.
+        // Es lo que de verdad importa mirar (no la barra): cuántos casteos quedan.
+        golpesRestantes(g) { return Math.floor(g.esencia / (g.nivel || 1)); },
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
         poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
         anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
