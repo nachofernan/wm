@@ -67,7 +67,7 @@ export function game() {
         combate: null,
         resultado: null, // 'victoria' | 'derrota' | null
         drop: null,
-        logCombate: [],
+        consola: [],
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -75,6 +75,7 @@ export function game() {
             this.seed = seed;
             this.talisman = estado.talisman;
             this.combate = estado.combate;
+            this.registrar('entrás al laberinto. WASD o flechas para caminar.');
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.campo = calcularCampo(seed, ancho, alto);
@@ -249,11 +250,20 @@ export function game() {
             }
 
             const datos = await respuesta.json();
+            const prob = this.campo.celdas[y][x].prob;
             this.aplicarEstado(datos.estado);
             if (datos.encuentro) {
                 this.movimientos.push({ dir: 'encuentro', ...datos.encuentro });
-                this.logCombate = [`¡te salta ${this.combate.monstruo.nombre}! (${this.combate.monstruo.elemento})`];
+                this.registrar(`paso a (${x},${y}) · riesgo ${prob}% · ⚔ ¡te salta ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento})!`);
+            } else {
+                this.registrar(`paso a (${x},${y}) · riesgo ${prob}% · nada`);
             }
+        },
+
+        // ── Consola ────────────────────────────────────────────────────────
+        registrar(txt) {
+            this.consola.push(txt);
+            if (this.consola.length > 200) this.consola.shift();
         },
 
         // ── Combate: cada acción viaja al servidor, que la resuelve ────────
@@ -275,12 +285,12 @@ export function game() {
 
             if (!respuesta.ok) {
                 const err = await respuesta.json();
-                this.logCombate.push(err.motivo);
+                this.registrar(`✗ ${err.motivo}`);
                 return;
             }
 
             const datos = await respuesta.json();
-            (datos.log || []).forEach((l) => this.logCombate.push(l.txt));
+            (datos.log || []).forEach((l) => this.registrar(l.txt));
             this.aplicarEstado(datos.estado);
             this.resultado = datos.resultado;
             this.drop = datos.drop;
@@ -291,11 +301,11 @@ export function game() {
         comer() { this.accionCombate('comer'); },
         bloquear(id) { this.accionCombate('bloquear', id); },
 
-        // Cerrar el panel de botín y volver a caminar.
+        // Cerrar el panel de botín y volver a caminar (la consola se conserva).
         seguir() {
             this.resultado = null;
             this.drop = null;
-            this.logCombate = [];
+            this.registrar('— seguís camino —');
         },
 
         // ── Derivados de la hoja de personaje ──────────────────────────────

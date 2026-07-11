@@ -42,10 +42,16 @@
         .drop { border: 1px solid #d8c24a; background: #29260f; border-radius: 8px; padding: 12px; margin-top: 12px; }
         .final { text-align: center; padding: 14px 0; } .final .titulo { font-size: 22px; font-weight: 700; }
         .final.victoria .titulo { color: var(--esencia); } .final.derrota .titulo { color: var(--vida); }
-        .log { font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; }
-        .log ol { margin: 0; padding-left: 16px; max-height: 220px; overflow-y: auto; }
         .vacio { color: var(--tenue); font-size: 13px; font-style: italic; }
         canvas { background: #f4f2ea; border-radius: 6px; }
+        .consola {
+            margin: 0 16px 16px; background: #0d0c11; border: 1px solid var(--linea);
+            border-radius: 8px; padding: 10px 14px;
+            font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.6;
+            height: 160px; overflow-y: auto; color: #a9d5b0;
+        }
+        .consola .linea { white-space: pre-wrap; }
+        .consola .linea.combate { color: #e0c04a; }
     </style>
 </head>
 <body>
@@ -59,7 +65,8 @@
         };
     </script>
 
-    <div x-data="game" x-on:keydown.window="mover($event)" class="maze-layout">
+    <div x-data="game" x-on:keydown.window="mover($event)">
+    <div class="maze-layout">
         <canvas x-ref="canvas" class="shrink-0"></canvas>
 
         <!-- ── Hoja del mago ─────────────────────────────────────────── -->
@@ -156,12 +163,15 @@
                 <a href="{{ route('jugar.crear') }}" style="display:inline-block;margin-top:6px"><button>nueva partida</button></a>
             </div>
 
-            <!-- Bitácora de combate -->
-            <div class="caja log" x-show="logCombate.length" x-cloak>
-                <h2>Combate</h2>
-                <ol><template x-for="(l, i) in logCombate" :key="i"><li x-text="l"></li></template></ol>
-            </div>
         </div>
+    </div>
+
+    <!-- ── Consola ───────────────────────────────────────────────────── -->
+    <div class="consola" x-ref="consolaBox" x-effect="consola.length; $nextTick(() => { if ($refs.consolaBox) $refs.consolaBox.scrollTop = $refs.consolaBox.scrollHeight; })">
+        <template x-for="(l, i) in consola" :key="i">
+            <div class="linea" :class="l.includes('⚔') || l.includes('daño') || l.includes('bloqueás') || l.includes('cae') ? 'combate' : ''" x-text="l"></div>
+        </template>
+    </div>
     </div>
 
     <style>[x-cloak] { display: none !important; }</style>

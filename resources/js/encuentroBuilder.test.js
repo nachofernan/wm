@@ -9,10 +9,10 @@ import { hashCampo } from './encuentroHash.js';
  * que cambiar igual, o la paridad PHP/JS del campo está rota.
  */
 const seedsCampo = [
-    ['seed 1, 30x30', 1, 30, 30, '430709b9511ba7bc1cd953843b8f4d3df7dc55c80602c44fc6140a6a8bb41dbb'],
-    ['seed 42, 30x30', 42, 30, 30, 'ccdec06ccd4ed031d08a6152936345c736d751a458c50570f0e69f9693a8ab88'],
-    ['seed 12345, 20x15', 12345, 20, 15, 'c1e932853d4957452f378fee7e7d1af78d0ebd7ae5e5aacc9ec1db5b46d278bf'],
-    ['seed 7, 100x100', 7, 100, 100, 'a157f391348f0231d441012813a6160e9c29c35d84fda166cb4e0435cf5b5c72'],
+    ['seed 1, 30x30', 1, 30, 30, '04067babec0d838a67d5244ae8d0b9c6982a2f0180edf60f2c2593811fafdf3d'],
+    ['seed 42, 30x30', 42, 30, 30, '48ba3dd2bb1972e8c52903cc608f81be6e7a1f5f04c7f63e967849b2120aba09'],
+    ['seed 12345, 20x15', 12345, 20, 15, '98a5d44d111301a9eedb9c360426662bd8fd6efb0e2aa0f6f49a58faa1aa7367'],
+    ['seed 7, 100x100', 7, 100, 100, '53b296fed15e14c348174057a967491f665f696a908f79acbaad6611cdb8847a'],
 ];
 
 describe('campo', () => {

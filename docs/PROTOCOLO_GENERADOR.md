@@ -156,15 +156,19 @@ campo(seed, W, H):
         pico  ← 10 + randBelow(6)               # 10..15
         nucleos.push({x, y, elem, pico})
 
-    campo ← toda celda {prob: 1, elem: null}   # piso de ambiente, nunca 0
+    campo ← toda celda {prob: AMBIENTE, elem: null}   # piso de ambiente, nunca 0
     por cada nucleo en orden:                   # sin PRNG a partir de acá
-        radio ← ⌊(pico - 1) / 2⌋
+        radio ← ⌊(pico - AMBIENTE) / 2⌋
         por cada celda a distancia Chebyshev ≤ radio (ATRAVIESA muros):
             prob ← pico - 2·anillo
             si prob > campo[celda].prob:         # estricto: 1er núcleo gana empates
                 campo[celda] ← {prob, elem}
     campo[(0,0)] ← {prob: 0, elem: null}        # la entrada es segura
 ```
+
+`AMBIENTE` (piso de encuentro de toda celda) y la densidad de colmenas son
+**números de arranque** (tuning, se ajustan jugando); cambiarlos regenera el
+vector de paridad del campo, pero no toca los seeds del maze ni las marcas.
 
 Notas de paridad:
 
