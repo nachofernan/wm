@@ -18,6 +18,10 @@ class Run extends Model
         'ancho',
         'alto',
         'terminado',
+        'pos_x',
+        'pos_y',
+        'pasos',
+        'semilla_secreta',
     ];
 
     protected $casts = [

@@ -57,8 +57,9 @@ que la mecánica esté cerrada.
 
 - [ ] Economía del talismán (hoja de personaje; poder = vida extirpado, ver 013)
 - [~] Reglas de combate y costos (`CombatResolver`, prototipado en `/pelea` y `/mago`)
-- [~] Comportamiento de monstruos: encuentros por celda ubicados (016, hecho);
-      falta el disparo secreto del servidor y el ping por paso
+- [~] Comportamiento de monstruos: encuentros por celda ubicados (016) + ping por
+      paso con dado secreto del servidor (017, hecho); falta resolver el combate
+      cuando el encuentro salta, y llevar puertas/llaves al servidor
 - [ ] Contenido de cofres, llave, salida
 - [ ] Condición de victoria: salir *con algo*
 

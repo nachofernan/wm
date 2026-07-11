@@ -381,3 +381,32 @@ cliente — mata la sorpresa); persistir cada paso como evento inmutable (infla 
 filas, rompe el espíritu del axioma 5); movimiento 100% local sin validación (se prefirió que el
 paso constate, ahora que igual viaja para el dado del encuentro); mandar la semilla de combate
 desde el cliente (se puede reintentar hasta pescar un crítico).
+
+## 017 — Implementación del ping por paso: dado secreto con semilla guardada — 2026-07-11
+**Decisión:** Implementa la 016 (Fase 4, primer escalón que une maze + encuentro + servidor).
+Concreta *cómo* el dado de encuentro es a la vez secreto para el cliente y reproducible en el
+servidor, sin romper el axioma 6.
+
+- **`EncuentroBuilder`** (PHP + espejo JS + test de paridad) produce el **campo** como función
+  pura del seed: por celda `{prob, elemento}`, piso de ambiente parejo más colmenas que irradian
+  y decaen por anillos de Chebyshev (atraviesan muros). Es el **sesgo público**, se pinta.
+- **El dado del disparo NO es `random_int`.** Cada partida guarda una `semilla_secreta` (columna
+  en `runs`, sorteada al crear, **nunca viaja al cliente**). El disparo del paso *n* es
+  `Prng(semilla_secreta + pasos).randBelow(100) < prob`. Así queda impredecible para el cliente
+  (no conoce la semilla) pero **reproducible en el servidor**, consistente con la disciplina de
+  PRNG del proyecto (nada de entropía del sistema en la lógica del juego).
+- **`POST /jugar/{token}/paso`**: valida el paso (adyacencia + pared abierta, regenerando el maze
+  desde el seed), actualiza la posición en la caché `runs` (`pos_x`, `pos_y`, `pasos`), tira el
+  dado y, si salta, escribe un evento `encuentro` append-only. El paso en sí no se persiste.
+- **El cliente ya no tira el dado.** El movimiento sigue optimista (se dibuja al instante); el
+  encuentro lo decide el servidor por ping async. Se borró el `prngEncuentros` del cliente.
+
+**Por qué:** La 016 dejó el "cómo" del secreto abierto. Una semilla guardada por partida cierra
+la tensión con el axioma 6: los eventos siguen siendo la verdad y el disparo es reproducible
+server-side para el replay, pero el cliente no lo predice. Es la disciplina de PRNG del proyecto
+aplicada al azar oculto, en vez de meter una fuente de entropía suelta.
+**Se descartó:** `random_int` para el dado (irreproducible, incoherente con el resto del azar del
+juego); mandar el dado o su semilla al cliente (lo predeciría). **Pendiente (no en este paso):**
+puertas/llaves en el servidor — hoy la validación del paso es adyacencia + pared (más laxa, nunca
+incorrecta: no rechaza cruzar una puerta que el cliente considera cerrada); y **resolver el
+combate dentro del maze** cuando el encuentro salta (el encuentro hoy solo se registra).

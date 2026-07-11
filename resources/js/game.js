@@ -1,7 +1,6 @@
 import { generarLaberinto } from './maze.js';
 import { marcas as calcularMarcas } from './mapaBuilder.js';
 import { campo as calcularCampo } from './encuentroBuilder.js';
-import { crearPrng, randBelow } from './prng.js';
 
 const CELDA = 20; // px por celda en el canvas
 
@@ -49,7 +48,6 @@ export function game() {
     return {
         token: null,
         seed: null,
-        prngEncuentros: null,
         matriz: null,
         marcas: null,
         campo: null,
@@ -67,9 +65,6 @@ export function game() {
             const { seed, ancho, alto, token } = window.__MAZE__;
             this.token = token;
             this.seed = seed;
-            // Stream separado del PRNG del maze (decorrelado con XOR) para no
-            // pisar la secuencia que usa generarLaberinto.
-            this.prngEncuentros = crearPrng(seed ^ 0x9E3779B9);
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.campo = calcularCampo(seed, ancho, alto);
@@ -192,19 +187,11 @@ export function game() {
             const idxLlave = this.buscarLlave(nx, ny);
             const llaveSinRecoger = idxLlave !== -1 && !this.llavesRecogidas[idxLlave];
 
-            // Disparo de encuentro por celda (docs/DECISIONES.md 016): la
-            // probabilidad sale del campo (sesgo público, paritario), pero la
-            // tirada acá es un ATAJO de playground — en el juego real el dado es
-            // secreto del servidor y viaja en el ping por paso. Sigue siendo
-            // obligatorio al pisar una llave sin recoger (guardián telegrafiado,
-            // docs/DECISIONES.md 011). Sin resolución de combate todavía: solo
-            // se registra el encuentro.
-            const prob = this.campo.celdas[ny][nx].prob;
-            if (llaveSinRecoger || randBelow(this.prngEncuentros, 100) < prob) {
-                this.movimientos.push({ dir: 'encuentro', x: nx, y: ny });
-            }
-
             if (llaveSinRecoger) {
+                // Guardián telegrafiado de la llave (docs/DECISIONES.md 011):
+                // pelea obligatoria. Sigue siendo client-side por ahora — las
+                // llaves todavía no viven en el servidor.
+                this.movimientos.push({ dir: 'guardian', x: nx, y: ny });
                 this.llavesRecogidas[idxLlave] = true;
                 if (idxLlave < this.puertasAbiertas.length) {
                     this.puertasAbiertas[idxLlave] = true; // llave de puerta
@@ -213,11 +200,46 @@ export function game() {
                 }
             }
 
+            // El encuentro RANDOM ya no lo tira el cliente: el paso sube al
+            // servidor, que valida y tira el dado secreto (docs/DECISIONES.md
+            // 016). La salida es terminal y la maneja finalizar()/salir.
             if (this.esSalida(nx, ny)) {
                 this.finalizar();
+            } else {
+                this.pingPaso(nx, ny);
             }
 
             this.dibujar();
+        },
+
+        /**
+         * Ping por paso (docs/DECISIONES.md 016): sube el paso al servidor, que
+         * es la autoridad. El movimiento ya se dibujó (optimista); acá solo se
+         * reacciona a lo que el servidor decide. Si el servidor rechaza el paso
+         * (cliente toqueteado o desincronizado) se avisa por consola — el
+         * cliente honesto nunca lo ve, porque regenera el mismo laberinto.
+         * Si el dado secreto disparó un encuentro, se registra (el combate
+         * dentro del maze es el próximo escalón).
+         */
+        async pingPaso(x, y) {
+            const respuesta = await fetch(`/jugar/${this.token}/paso`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: JSON.stringify({ x, y }),
+            });
+
+            if (!respuesta.ok) {
+                console.warn('paso rechazado por el servidor', x, y);
+                return;
+            }
+
+            const datos = await respuesta.json();
+            if (datos.encuentro) {
+                this.movimientos.push({ dir: 'encuentro', ...datos.encuentro });
+            }
         },
 
         finalizar() {
