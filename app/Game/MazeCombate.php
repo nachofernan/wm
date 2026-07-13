@@ -30,14 +30,19 @@ final class MazeCombate
         'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'nivelAtaque' => 5, 'peso' => 1, 'dificultad' => 2],
     ];
 
-    /** Hoja de personaje inicial: una gema n3 de cada elemento (4 × 3 = 12 = cap). */
+    /**
+     * Hoja de personaje inicial: nivel 1 y una gema n3 de cada elemento
+     * (4 × 3 = 12 = cap a nivel 1). El nivel es la fuente de verdad de la
+     * progresión (024); cap y defensa los deriva Talisman::recomputar.
+     */
     public static function talismanInicial(): array
     {
-        return [
+        return Talisman::recomputar([
+            'nivel' => 1,
             'vida' => 40,
             'vidaMax' => 40,
-            'defensa' => 8,
-            'cap' => 12,
+            'cap' => 0,     // lo fija recomputar desde el nivel
+            'defensa' => 0, // idem
             'esencia' => 0,
             'gemas' => [
                 ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
@@ -48,7 +53,7 @@ final class MazeCombate
             'proximoId' => 5,
             'bichosCaidos' => 0,
             'gemasJuntadas' => 0,
-        ];
+        ]);
     }
 
     /**

@@ -121,14 +121,16 @@
                         <button class="mini-btn" @click="curar()" :class="{ enviando: accionActiva === 'curar-' }"
                             :disabled="cargando || talisman.esencia < 1 || talisman.vida >= talisman.vidaMax"
                             title="convertir esencia en vida (1:1)" x-text="`curar +${cuantoCura()}`"></button>
-                        <button class="mini-btn" @click="subirCap()" :class="{ enviando: accionActiva === 'subirCap-' }"
-                            :disabled="cargando || talisman.esencia < 5" title="subir cap del talismán (5 es.)">+1 cap</button>
+                        <button class="mini-btn" @click="subirNivel()" :class="{ enviando: accionActiva === 'subirNivel-' }"
+                            :disabled="cargando || talisman.esencia < costoNivel()" :title="`subir nivel del talismán (${costoNivel()} es.)`">+1 nivel</button>
                     </div>
                 </div>
                 <div class="stat-grid">
+                    <div class="stat">nivel<b x-text="talisman.nivel"></b></div>
                     <div class="stat">vida<b x-text="`${talisman.vida}/${talisman.vidaMax}`"></b></div>
                     <div class="stat">poder<b x-text="`${poderActual()}/${capEnUso()}`"></b></div>
                     <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
+                    <div class="stat">defensa<b x-text="talisman.defensa"></b></div>
                     <div class="stat">esencia<b x-text="talisman.esencia"></b></div>
                     <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>
                     <div class="stat">gemas<b x-text="talisman.gemasJuntadas"></b></div>

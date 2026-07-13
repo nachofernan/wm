@@ -16,8 +16,20 @@ namespace App\Game;
  */
 final class Talisman
 {
-    /** Esencia por +1 de cap (valor de arranque, ver 011/015). */
-    public const COSTO_CAP = 5;
+    /**
+     * Progresión maestra (docs/DECISIONES.md 024): el nivel del talismán deriva
+     * el cap y los stats base de la hoja de personaje (014). Números de arranque
+     * (tuning) elegidos para mantener el mago inicial (4×n3 = cap 12, defensa 8).
+     */
+    public const CAP_BASE = 12;      // cap a nivel 1
+
+    public const CAP_POR_NIVEL = 10; // +cap por cada nivel
+
+    public const DEF_BASE = 8;       // defensa a nivel 1
+
+    public const DEF_POR_NIVEL = 4;  // +defensa base por cada nivel
+
+    public const COSTO_NIVEL = 10;   // esencia para subir de nivel N a N+1 = N × esto
 
     /**
      * Aplica una acción y devuelve el talismán nuevo, o un error si la acción
@@ -31,10 +43,47 @@ final class Talisman
             'fieldear' => self::fieldear($talisman, $gemaId),
             'guardar' => self::guardar($talisman, $gemaId),
             'desguazar' => self::desguazar($talisman, $gemaId),
-            'subirCap' => self::subirCap($talisman),
+            'subirNivel' => self::subirNivel($talisman),
             'curar' => self::curar($talisman),
             default => self::error($talisman, 'acción desconocida'),
         };
+    }
+
+    /** Cap del talismán a un nivel dado (proyección escalonada, 024). */
+    public static function capDeNivel(int $nivel): int
+    {
+        return self::CAP_BASE + ($nivel - 1) * self::CAP_POR_NIVEL;
+    }
+
+    /**
+     * Defensa base a un nivel dado, antes del acople de gemas. El roll-up
+     * gema→defensa (agua) se suma acá en el paso 2 del 024; hoy es solo la base.
+     */
+    public static function defensaDeNivel(int $nivel): int
+    {
+        return self::DEF_BASE + ($nivel - 1) * self::DEF_POR_NIVEL;
+    }
+
+    /** Esencia para subir de $nivel al siguiente (024). */
+    public static function costoNivel(int $nivel): int
+    {
+        return $nivel * self::COSTO_NIVEL;
+    }
+
+    /**
+     * Recalcula los stats derivados de la hoja (cap, defensa) desde el nivel del
+     * talismán —y, desde el paso 2 del 024, desde el acople de las gemas
+     * fieldeadas—. Se llama tras cada mutación exitosa (ver ok()): cap y defensa
+     * son proyección cacheada en el blob, no fuente de verdad. El `?? 1` tolera
+     * blobs viejos sin nivel (dev, runs desechables).
+     */
+    public static function recomputar(array $talisman): array
+    {
+        $nivel = $talisman['nivel'] ?? 1;
+        $talisman['cap'] = self::capDeNivel($nivel);
+        $talisman['defensa'] = self::defensaDeNivel($nivel);
+
+        return $talisman;
     }
 
     /** Equipar una gema del inventario, si entra en el cap. */
@@ -78,14 +127,19 @@ final class Talisman
         return self::ok($talisman);
     }
 
-    /** Subir el cap con esencia. */
-    private static function subirCap(array $talisman): array
+    /**
+     * Sube un nivel del talismán con esencia pura (progresión maestra, 014/024):
+     * el nivel deriva el cap y los stats base, así que recomputar() (vía ok())
+     * los actualiza solo. Reemplaza el viejo subirCap punto-a-punto (011).
+     */
+    private static function subirNivel(array $talisman): array
     {
-        if ($talisman['esencia'] < self::COSTO_CAP) {
+        $costo = self::costoNivel($talisman['nivel']);
+        if ($talisman['esencia'] < $costo) {
             return self::error($talisman, 'esencia insuficiente');
         }
-        $talisman['esencia'] -= self::COSTO_CAP;
-        $talisman['cap'] += 1;
+        $talisman['esencia'] -= $costo;
+        $talisman['nivel'] += 1;
 
         return self::ok($talisman);
     }
@@ -149,7 +203,7 @@ final class Talisman
 
     private static function ok(array $talisman): array
     {
-        return ['talisman' => $talisman, 'error' => null];
+        return ['talisman' => self::recomputar($talisman), 'error' => null];
     }
 
     private static function error(array $talisman, string $motivo): array

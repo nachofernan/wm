@@ -52,18 +52,29 @@ test('una gema fieldeada no se desguaza', function () {
     expect($r['error'])->toBe('gema inválida');
 });
 
-test('subir cap cuesta esencia y sube el tope', function () {
+test('el talismán inicial arranca en nivel 1 con cap y defensa base', function () {
     $t = MazeCombate::talismanInicial();
-    $t['esencia'] = 7;
 
-    $r = Talisman::aplicar($t, 'subirCap', null);
-
-    expect($r['talisman']['cap'])->toBe(13);
-    expect($r['talisman']['esencia'])->toBe(2); // 7 − 5
+    expect($t['nivel'])->toBe(1);
+    expect($t['cap'])->toBe(12);     // CAP_BASE
+    expect($t['defensa'])->toBe(8);  // DEF_BASE
 });
 
-test('subir cap sin esencia suficiente es rechazado', function () {
-    $r = Talisman::aplicar(MazeCombate::talismanInicial(), 'subirCap', null);
+test('subir nivel cuesta esencia y sube cap y defensa', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['esencia'] = 12;
+
+    $r = Talisman::aplicar($t, 'subirNivel', null);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['nivel'])->toBe(2);
+    expect($r['talisman']['cap'])->toBe(22);     // 12 + 10
+    expect($r['talisman']['defensa'])->toBe(12); // 8 + 4
+    expect($r['talisman']['esencia'])->toBe(2);  // 12 − (1 × 10)
+});
+
+test('subir nivel sin esencia suficiente es rechazado', function () {
+    $r = Talisman::aplicar(MazeCombate::talismanInicial(), 'subirNivel', null);
 
     expect($r['error'])->toBe('esencia insuficiente');
 });

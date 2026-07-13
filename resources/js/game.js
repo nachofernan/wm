@@ -391,9 +391,12 @@ export function game() {
         fieldear(id) { this.accionTalisman('fieldear', id); },
         guardar(id) { this.accionTalisman('guardar', id); },
         desguazar(id) { this.accionTalisman('desguazar', id); },
-        subirCap() { this.accionTalisman('subirCap'); },
+        subirNivel() { this.accionTalisman('subirNivel'); },
         curar() { this.accionTalisman('curar'); },
         puedeFieldear(g) { return this.talisman && this.capEnUso() + g.nivel <= this.talisman.cap; },
+
+        // Esencia para subir de nivel — espejo de Talisman::costoNivel (024): nivel × COSTO_NIVEL.
+        costoNivel() { return this.talisman ? this.talisman.nivel * 10 : 0; },
 
         // Cerrar el panel de botín y volver a caminar (la consola se conserva).
         seguir() {

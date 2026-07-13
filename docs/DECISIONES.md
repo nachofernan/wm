@@ -549,3 +549,44 @@ un spinner mientras la respuesta está en vuelo, y el resto de los botones se de
 que vuelve. **Por qué:** en el servidor chico las llamadas discretas que quedan (combate) igual
 tardan; sin feedback el jugador clickea dos veces o cree que se colgó. Un `cargando` global
 bloquea acciones concurrentes y `accionActiva` marca cuál botón gira.
+
+## 024 — La hoja de personaje se construye: nivel del talismán + acople gema→stat (modelo A) — 2026-07-12
+**Decisión:** Cierra la charla que la 014 dejó dibujada pero sin construir. La 014 prometió que el
+talismán es la hoja de personaje (ataque, defensa, visión, memoria…) potenciada por las gemas, pero
+el código nunca lo implementó: el ataque era gema-a-gema puro (012) y la defensa una constante (8)
+que las gemas no tocaban. Se cierra **cómo** se arma la hoja, en dos ejes:
+
+- **La espina — nivel del talismán como progresión maestra (implementa la 014, revierte el cap
+  punto-a-punto de la 011).** El talismán gana un `nivel` (arranca en 1). El **cap** y los **stats
+  base** se **derivan del nivel** (escalonado), no se afinan punto a punto. Subir de nivel se compra
+  con esencia pura (015) y reemplaza el `subirCap`/`COSTO_CAP` de la 011 —que la 014 ya había
+  revertido en diseño y el código todavía arrastraba—. `cap` y `defensa` pasan a ser **proyección
+  cacheada** en el blob del talismán, recomputada tras cada mutación desde el nivel (y, con el
+  roll-up, desde las gemas fieldeadas): la vista, el JS y `MazeCombate` los siguen leyendo igual.
+
+- **El acople gema→stat es dirigido por elemento (modelo A), no por afijo por gema (modelo B).**
+  Las gemas fieldeadas aportan a los stats de la hoja según su **elemento y nivel** (fuego~ataque,
+  agua~defensa, aire~visión, tierra~memoria), con acople suelto (una gema puede tocar varios). El
+  **ataque** se acopla como **multiplicador** sobre el daño gema-a-gema de la 012
+  (`daño = nivel×F × elemental × variación × (1 + bonusAtaque)`); la **defensa** como **sumando** al
+  ratio existente (`K/(K+defensa)`, que ya da los rendimientos decrecientes). Así la 012 (resolución
+  por golpe) y la 014 (capa pasiva de hoja) quedan como dos capas que no chocan. Fieldear deja de ser
+  "qué gemas me dan ataque + esencia bajo el cap" y pasa a ser una decisión de hoja completa.
+
+- **Se construye en dos pasos:** (1) la espina (nivel → cap + defensa base, subir nivel con esencia);
+  (2) el roll-up gema→stat sobre esa espina. La rueda elemental concreta sigue siendo tuning
+  independiente (no bloquea el acople). El modelo B (afijos por gema instancia) queda como profundidad
+  futura si el loop base lo pide, sin decisión tomada.
+
+**Números de arranque (tuning, se ajustan jugando — regla 010/011/012):** `cap(nivel) = 12 + (nivel−1)×10`
+(nivel 1 = 12, mantiene el mago inicial de 4×n3); `defensa(nivel) = 8 + (nivel−1)×4` (nivel 1 = 8,
+mantiene el actual); subir de nivel N→N+1 cuesta `N×10` de esencia.
+**Por qué:** La 014 estaba decidida y sin construir; el fielding no era una decisión de hoja porque
+defensa/visión/memoria eran constantes. El modelo A entrega esa decisión con el mínimo de mecánica
+(YAGNI técnico, profundidad en la mecánica). Derivar cap y stats de un solo `nivel` evita la tercera
+capa de stats que la 014 ya rechazó, y mata la deuda del cap punto-a-punto. Ataque multiplicativo /
+defensa aditiva caen naturalmente sobre la fórmula que ya existe.
+**Se descartó:** el modelo B (afijos por gema) como arranque —es un sistema de loot completo (stat
+block por gema, tabla de tiradas, UI), profundidad antes de probar el loop—; seguir con el cap
+punto-a-punto (deuda de la 011 revertida por la 014); un `nivel` como tercer eje aparte del cap (se
+derivó del nivel, coherente con la 014).
