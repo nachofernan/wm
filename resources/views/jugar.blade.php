@@ -25,6 +25,9 @@
         .caja { background: var(--caja); border: 1px solid var(--linea); border-radius: 10px; padding: 14px; }
         .col { display: flex; flex-direction: column; gap: 14px; width: 360px; }
         .col.gemas { width: 410px; align-self: flex-start; } /* la columna que más crece: se le da aire */
+        /* La columna del inventario se topa al mapa (max-height inline) y deja que
+           solo la lista interna scrollee — min-height:0 habilita que el flex encoja. */
+        .col.combate { min-height: 0; }
         .hoja-cab { display: flex; justify-content: space-between; align-items: center; }
         .badge-esencia { font-size: 12px; font-weight: 600; color: var(--esencia); background: var(--caja2); border: 1px solid var(--linea); border-radius: 6px; padding: 3px 8px; }
         h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); }
@@ -142,20 +145,25 @@
         .celda-cab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); margin-bottom: 6px; }
         .celda-datos { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
         .celda-datos .nom { text-transform: capitalize; display: inline-flex; align-items: center; gap: 4px; }
+        /* Segunda fila del panel: los números (riesgo/dist/poder), separados del
+           tipo+elemento para que con colmena y valores altos no se desborde. */
+        .celda-stats { display: flex; align-items: center; gap: 12px; font-size: 13px; flex-wrap: wrap; margin-top: 7px; }
         .celda-tipo { padding: 2px 8px; border-radius: 5px; text-transform: capitalize; font-weight: 600; background: var(--caja2); border: 1px solid var(--linea); color: var(--tenue); }
         .celda-tipo.entrada, .celda-tipo.salida { color: #7fd18f; border-color: #3c8a58; }
         .celda-tipo.puerta { color: gold; border-color: #7a6a2a; }
         .celda-tipo.llave { color: orange; border-color: #8a5a20; }
-        .celda-tipo.colmena { color: var(--vida); border-color: #7a3030; }
+        /* El badge de colmena toma el color de SU elemento (030): un colmena de
+           agua no puede aparecer en rojo. El elem no nulo lo garantiza tipoCelda. */
+        .celda-tipo.colmena.fuego { color: var(--fuego); border-color: var(--fuego); }
+        .celda-tipo.colmena.agua { color: var(--agua); border-color: var(--agua); }
+        .celda-tipo.colmena.tierra { color: var(--tierra); border-color: var(--tierra); }
+        .celda-tipo.colmena.aire { color: var(--aire); border-color: var(--aire); }
         .celda-poder b { color: #e0a94f; } /* poder x(1+t) por distancia (027) */
         /* Corazón de vida (♥) coloreado; los ♥ dentro de botones heredan el color del botón. */
         .ico-vida { color: var(--vida); }
         /* Botón de subir nivel cuando ya alcanza la esencia: blanco con glow que late. */
         button.nivel-listo:not(:disabled) { color: #fff; border-color: var(--esencia); animation: pulso-nivel 1.7s ease-in-out infinite; }
         @keyframes pulso-nivel { 0%, 100% { box-shadow: 0 0 5px rgba(85, 176, 136, 0.35); } 50% { box-shadow: 0 0 12px rgba(85, 176, 136, 0.85); } }
-        .drop { border: 1px solid #d8c24a; background: #29260f; border-radius: 8px; padding: 12px; margin-top: 12px; }
-        .final { text-align: center; padding: 14px 0; } .final .titulo { font-size: 22px; font-weight: 700; }
-        .final.victoria .titulo { color: var(--esencia); } .final.derrota .titulo { color: var(--vida); }
         .vacio { color: var(--tenue); font-size: 13px; font-style: italic; }
         canvas { background: #f4f2ea; border-radius: 6px; display: block; }
         /* El mapa y su overlay de combate: el bicho flota sobre el mapa ocioso
@@ -183,6 +191,18 @@
         .modelo-sub { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: var(--tenue); text-transform: capitalize; margin: 2px 0 10px; }
         .modelo-stats { display: flex; justify-content: center; gap: 12px; font-size: 12px; color: var(--tenue); margin-top: 6px; }
         .modelo-hint { margin-top: 10px; font-size: 12px; color: var(--vida); font-weight: 600; }
+        /* Pie de acciones de la maqueta: escape (en combate) o seguir/reiniciar (cierre). */
+        .modelo-acciones { margin-top: 12px; display: flex; justify-content: center; }
+        .modelo-acciones .escape { color: var(--esencia); }
+        .modelo-acciones a { text-decoration: none; }
+        /* Título de cierre sobre la maqueta (030): ¡Cayó! / Derrota / ¡Saliste! */
+        .final-titulo { font-size: 20px; font-weight: 700; margin: 8px 0 2px; }
+        .final-titulo.victoria { color: var(--esencia); }
+        .final-titulo.derrota { color: var(--vida); }
+        /* Botín en la pantalla de victoria: las gemas que soltó, alineadas a la izquierda. */
+        .botin { margin-top: 10px; border-top: 1px solid var(--linea); padding-top: 10px; text-align: left; }
+        .botin-cab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); margin-bottom: 6px; }
+        .botin-gema { font-size: 13px; text-transform: capitalize; display: flex; align-items: center; gap: 5px; padding: 2px 0; }
         .mini-btn.recarga { color: var(--esencia); }
         .mini-btn.recarga:disabled { color: var(--tenue); opacity: 0.5; }
         .inv-vacio { color: var(--tenue); font-size: 13px; font-style: italic; padding: 6px 2px; }
@@ -222,9 +242,11 @@
             <canvas x-ref="canvas"></canvas>
 
             <!-- Hoja de stats del bicho, centrada sobre el mapa (029): una maqueta
-                 de "modelo" lista para ponerle imagen. Solo nombre y valores; la
-                 defensa se resuelve tocando una gema del talismán, no acá. -->
-            <div class="combate-flotante" x-show="combate" x-cloak>
+                 de "modelo" lista para ponerle imagen. Es también la pantalla de
+                 cierre (030): victoria/derrota/salida se muestran acá mismo, con el
+                 botín y el botón de reiniciar, en vez de una card en otra columna. -->
+            <div class="combate-flotante" x-show="combate || resultado || terminado" x-cloak>
+                <!-- Combate activo: la maqueta + escape en tu turno -->
                 <template x-if="combate">
                     <div class="modelo">
                         <div class="modelo-fig" :class="combate.monstruo.elemento" x-text="combate.monstruo.nombre.charAt(0)"></div>
@@ -240,6 +262,63 @@
                             <span x-text="`peso ${combate.monstruo.peso}`"></span>
                         </div>
                         <div class="modelo-hint" x-show="combate.turno === 'defensa'">arremete — bloqueá con una gema</div>
+                        <div class="modelo-acciones" x-show="combate.turno === 'tuTurno'">
+                            <button class="mini-btn escape" @click="escapar()" :class="{ enviando: accionActiva === 'escapar-' }"
+                                :disabled="cargando || talisman.esencia < combate.monstruo.escape"
+                                :title="talisman.esencia < combate.monstruo.escape ? `te faltan ${combate.monstruo.escape - talisman.esencia} ✦ para escapar` : `escapar del combate (−${combate.monstruo.escape} ✦)`"
+                                x-text="`escapar · ${combate.monstruo.escape} ✦`"></button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Victoria: el bicho caído + el botín + seguir -->
+                <template x-if="!combate && resultado === 'victoria'">
+                    <div class="modelo">
+                        <div class="modelo-fig" :class="bichoResuelto?.elemento" x-text="bichoResuelto ? bichoResuelto.nombre.charAt(0) : ''"></div>
+                        <div class="final-titulo victoria">¡Cayó!</div>
+                        <div class="modelo-nombre" x-text="bichoResuelto?.nombre"></div>
+                        <div class="modelo-sub">
+                            <span class="punto" :class="bichoResuelto?.elemento"></span>
+                            <span x-text="bichoResuelto?.elemento"></span> · <span x-text="bichoResuelto ? `N${bichoResuelto.nivel}` : ''"></span>
+                        </div>
+                        <div class="botin" x-show="drop && drop.length">
+                            <div class="botin-cab" x-text="drop && drop.length > 1 ? `Botín · ${drop.length} piedras` : 'Botín'"></div>
+                            <template x-for="d in (drop || [])" :key="d.id">
+                                <div class="botin-gema" :class="d.elemento">
+                                    <span class="punto" :class="d.elemento"></span><span x-text="d.elemento"></span> <span class="valor" x-text="`n${d.nivel}`"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="modelo-acciones">
+                            <button class="primario" @click="seguir()">seguir</button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Derrota: el bicho que te mató + reiniciar -->
+                <template x-if="!combate && resultado === 'derrota'">
+                    <div class="modelo">
+                        <div class="modelo-fig" :class="bichoResuelto?.elemento" x-text="bichoResuelto ? bichoResuelto.nombre.charAt(0) : ''"></div>
+                        <div class="final-titulo derrota">Derrota</div>
+                        <div class="modelo-nombre" x-text="bichoResuelto?.nombre"></div>
+                        <div class="modelo-sub">
+                            <span class="punto" :class="bichoResuelto?.elemento"></span>
+                            <span x-text="bichoResuelto?.elemento"></span> · <span x-text="bichoResuelto ? `N${bichoResuelto.nivel}` : ''"></span>
+                        </div>
+                        <div class="modelo-acciones">
+                            <a href="{{ route('jugar.crear') }}"><button class="primario">nueva partida</button></a>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Salida: el laberinto se cerró bien -->
+                <template x-if="!combate && !resultado && terminado">
+                    <div class="modelo">
+                        <div class="final-titulo victoria">¡Saliste!</div>
+                        <div class="modelo-sub" style="margin-bottom:14px">laberinto finalizado</div>
+                        <div class="modelo-acciones">
+                            <a href="{{ route('jugar.crear') }}"><button class="primario">nueva partida</button></a>
+                        </div>
                     </div>
                 </template>
             </div>
@@ -331,7 +410,10 @@
         </div>
 
         <!-- ── Rueda + combate + partida ─────────────────────────────── -->
-        <div class="col combate">
+        <!-- La columna se topa a la altura del mapa: así, con muchas piedras, el
+             inventario scrollea adentro en vez de estirar la fila y empujar el
+             pie (consola + datos) hacia abajo. -->
+        <div class="col combate" :style="alturaPx ? `max-height:${alturaPx}px` : ''">
             <div class="caja rueda">
                 <h2>Rueda elemental — quién le gana a quién</h2>
                 <div class="rueda-ciclo">
@@ -343,32 +425,16 @@
                 <div class="celda-panel" x-show="celdaActual()" x-cloak>
                     <div class="celda-cab">celda actual <span x-text="celdaActual() ? `(${celdaActual().x}, ${celdaActual().y})` : ''"></span></div>
                     <div class="celda-datos">
-                        <span class="celda-tipo" :class="celdaActual()?.tipo" x-text="celdaActual()?.tipo"></span>
-                        <span class="celda-riesgo">riesgo <b x-text="celdaActual() ? `${celdaActual().prob}%` : ''"></b></span>
-                        <span class="celda-dist">dist <b x-text="celdaActual()?.dist"></b></span>
-                        <span class="celda-poder">poder <b x-text="celdaActual() ? `×${celdaActual().poder.toFixed(2)}` : ''"></b></span>
+                        <span class="celda-tipo" :class="[celdaActual()?.tipo, celdaActual()?.tipo === 'colmena' ? celdaActual().elem : '']" x-text="celdaActual()?.tipo"></span>
                         <template x-if="celdaActual()?.elem">
                             <span class="nom"><span class="punto" :class="celdaActual().elem"></span><span x-text="celdaActual().elem"></span></span>
                         </template>
                     </div>
-                </div>
-            </div>
-
-            <!-- Resultado + botín -->
-            <div class="caja" x-show="resultado" x-cloak>
-                <div class="final" :class="resultado">
-                    <div class="titulo" x-text="resultado === 'victoria' ? '¡Victoria!' : 'Derrota'"></div>
-                </div>
-                <div class="drop" x-show="drop && drop.length">
-                    <div style="font-weight:600;margin-bottom:6px" x-text="drop && drop.length > 1 ? `Botín: ${drop.length} piedras` : 'Botín'"></div>
-                    <template x-for="d in (drop || [])" :key="d.id">
-                        <div class="valor" x-text="`· gema de ${d.elemento} nivel ${d.nivel}`"></div>
-                    </template>
-                    <div class="valor" style="margin-top:4px">Quedó en tu inventario.</div>
-                </div>
-                <div style="margin-top:12px;text-align:center">
-                    <button class="primario" x-show="resultado === 'victoria'" @click="seguir()">seguir</button>
-                    <a x-show="resultado === 'derrota'" href="{{ route('jugar.crear') }}"><button>nueva partida</button></a>
+                    <div class="celda-stats">
+                        <span class="celda-riesgo">riesgo <b x-text="celdaActual() ? `${celdaActual().prob}%` : ''"></b></span>
+                        <span class="celda-dist">dist <b x-text="celdaActual()?.dist"></b></span>
+                        <span class="celda-poder">poder <b x-text="celdaActual() ? `×${celdaActual().poder.toFixed(2)}` : ''"></b></span>
+                    </div>
                 </div>
             </div>
 
@@ -427,7 +493,6 @@
                 <div class="stat">gemas<b x-text="talisman ? talisman.gemasJuntadas : 0"></b></div>
             </div>
             <div class="valor" style="margin-top:10px">seed: <span x-text="seed"></span></div>
-            <p x-show="terminado" style="font-weight:700;margin:6px 0" x-text="resultado === 'derrota' ? 'el mago cayó' : 'laberinto finalizado'"></p>
             <a href="{{ route('jugar.crear') }}" style="display:inline-block;margin-top:6px"><button>nueva partida</button></a>
         </div>
     </div>

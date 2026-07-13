@@ -105,6 +105,8 @@ export function game() {
         combate: null,
         resultado: null, // 'victoria' | 'derrota' | null
         drop: null,
+        bichoResuelto: null, // monstruo del último combate cerrado: se muestra en la
+                             // pantalla de victoria/derrota (el server ya mandó combate:null)
         consola: [],
         // Una llamada al servidor en vuelo: bloquea acciones concurrentes y prende
         // el spinner. accionActiva marca CUÁL botón gira (DECISIONES.md 023).
@@ -115,8 +117,8 @@ export function game() {
         // no viaja al servidor). Mayores siempre arriba.
         filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
         fusionSel: null, // id de la 1ª gema elegida para fusionar (025), o null
-        ordenInv: 'nivel', // 'nivel' | 'carga' | 'elemento'
-        ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'carga' | 'elemento'
+        ordenInv: 'elemento', // 'nivel' | 'carga' | 'elemento' — arranca por tipo
+        ordenField: 'elemento', // idem para el talismán (fieldeadas): arranca por tipo
         ordenFieldIds: [], // orden CONGELADO de las fieldeadas (ids); solo se recalcula al cambiar
                            // el select o el set fieldeado — nunca por un ataque que baje carga
         arrastrando: null, // id de la gema fieldeada que se está arrastrando, o null
@@ -138,6 +140,7 @@ export function game() {
             this.puertasAbiertas = this.marcas.puertas.map(() => false);
             this.llavesRecogidas = this.marcas.llaves.map(() => false);
             this.visitadas[`${this.mago.x},${this.mago.y}`] = true;
+            this.reordenarField(); // el talismán arranca ordenado por tipo, no en el orden crudo
             this.$nextTick(() => this.dibujar());
         },
 
@@ -439,17 +442,26 @@ export function game() {
 
         // ── Combate: cada acción viaja al servidor, que la resuelve ────────
         async accionCombate(accion, gemaId = null) {
+            // Snapshot del bicho ANTES de la llamada: al cerrar el combate el server
+            // manda combate:null, y la pantalla de victoria/derrota necesita saber a
+            // quién mataste / quién te mató.
+            const bicho = this.combate?.monstruo;
             const datos = await this.pedir(`/jugar/${this.token}/combate`, { accion, gemaId }, `${accion}-${gemaId ?? ''}`);
             if (!datos) return;
             (datos.log || []).forEach((l) => this.registrar(l.txt));
             this.aplicarEstado(datos.estado);
+            // Huida (030): el combate se cierra pero sin pantalla de resultado —
+            // seguís caminando (la colmena queda viva).
+            if (datos.resultado === 'huida') return;
             this.resultado = datos.resultado;
             this.drop = datos.drop;
+            if (datos.resultado === 'victoria' || datos.resultado === 'derrota') this.bichoResuelto = bicho;
             if (datos.resultado === 'derrota') this.terminado = true;
         },
 
         atacar(id) { this.accionCombate('atacar', id); },
         bloquear(id) { this.accionCombate('bloquear', id); },
+        escapar() { this.accionCombate('escapar'); },
 
         // ── Talismán: armar el loadout entre peleas ────────────────────────
         async accionTalisman(accion, gemaId = null, gemaId2 = null) {
@@ -537,6 +549,7 @@ export function game() {
         seguir() {
             this.resultado = null;
             this.drop = null;
+            this.bichoResuelto = null;
             this.registrar('— seguís camino —');
         },
 
