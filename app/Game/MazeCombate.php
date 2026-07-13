@@ -33,7 +33,7 @@ final class MazeCombate
     private const ARQUETIPOS = [
         'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
         'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
-        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 70, 'defensa' => 30, 'coefPeso' => 1.25, 'coefDestreza' => 0.75, 'dificultad' => 4],
+        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 58, 'defensa' => 30, 'coefPeso' => 1.25, 'coefDestreza' => 0.75, 'dificultad' => 4],
         'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'coefPeso' => 0.75, 'coefDestreza' => 1.25, 'dificultad' => 2],
     ];
 
