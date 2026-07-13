@@ -727,3 +727,32 @@ costo de fusión mete a la fusión en la economía de esencia, donde compite por
 mazes, 011 — esto es la rampa fina); aplanar los arquetipos a puro estilo sin offset de dificultad (se conserva
 el offset); costo de fusión escalado desde el arranque (se elige `1` fijo, legible; se escala solo si el hoardeo
 lo pide); fijar ya los números del escalado (tuning, se ajustan jugando).
+
+## 028 — Subir nivel da vida; recargar gemas con esencia — 2026-07-13
+**Decisión:** Dos ajustes a la economía del talismán que salieron de jugar la versión que "tira mucha
+basurita".
+
+- **Subir nivel sube el tope de vida (+10) y cura al 100% [IMPLEMENTADO].** Hasta ahora `vidaMax` era un borde
+  fijo (40) que no tocaba nada: el nivel derivaba cap y defensa, no vida. Ahora cada subida suma `VIDA_POR_NIVEL`
+  (=10, arranque) al tope y **cura al 100%** — subir de nivel es también el sanador grueso, además de curar 1:1
+  con esencia (021). `vidaMax` **no** se mete en `recomputar()` (que corre en cada acción y pisaría la vida): se
+  muta incremental en `subirNivel`. Es un stat nuevo que crece con la progresión maestra (024), coherente con
+  "el talismán es a la vez poder y vida" (DISENO §4).
+
+- **Recargar una gema al tope cuesta su nivel en esencia [IMPLEMENTADO].** Nueva acción `recargar`: lleva la
+  carga (⚡, combustible de combate) al tope `nivel × 6` (026) pagando `nivel × COSTO_RECARGA_POR_NIVEL` (=1,
+  arranque) de esencia pura. **Sin cargas parciales**: va al tope entero y cuesta el nivel completo tenga 0 o
+  casi lleno (una N4 en 15/24 igual cuesta 4 y queda en 24). Se bloquea con la carga llena (no malgasta esencia,
+  como curar con la vida al tope) o sin esencia. Vale para cualquier gema, fieldeada o no. Reengancha la esencia
+  con el ⚡: la versión que dropea mucha piedra chica dejaba sin carga ni para farmear, y recargar es la válvula.
+  El candidato de tuning si resulta muy barato es **×2** (doble del nivel); se arranca en ×1 y se observa.
+
+**Por qué:** Las dos cierran huecos que aparecieron jugando. La vida por nivel le da a "subir nivel" un segundo
+motivo (no solo cap/defensa) y hace que la progresión también sostenga la supervivencia, que es el treadmill del
+pilar de planificación. La recarga resuelve que el combustible de combate se secaba: sin ⚡ no hay hechizos, y
+juntar gemas nuevas no alcanzaba si nacían para desguace. Ahora la esencia es el pivote entre nivel, cura,
+fusión (027) y carga — cuatro sumideros que compiten, que es exactamente la tensión que el talismán busca.
+**Se descartó:** derivar `vidaMax` en `recomputar` (pisaría la vida actual en cada acción); recarga parcial
+proporcional (más "justa" pero borra la decisión de cuándo recargar); costo de recarga plano en vez de por nivel
+(el por-nivel hace que mantener gemas grandes cargadas sea caro, coherente con que son las que rinden). Números
+de arranque: `+10` de vida, `×1` de recarga; ambos se ajustan jugando.

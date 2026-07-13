@@ -74,6 +74,18 @@ test('subir nivel cuesta esencia y sube cap y defensa base', function () {
     expect($r['talisman']['esencia'])->toBe(2);        // 12 − (1 × 10)
 });
 
+test('subir nivel sube el tope de vida en 10 y cura al 100% (028)', function () {
+    $t = MazeCombate::talismanInicial();
+    $t['esencia'] = 10;
+    $t['vida'] = 12; // maltrecho: la subida tiene que llenarlo
+
+    $r = Talisman::aplicar($t, 'subirNivel', null);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['vidaMax'])->toBe(50); // 40 + 10
+    expect($r['talisman']['vida'])->toBe(50);    // cura al 100%
+});
+
 test('el acople gema→stat: fieldear agua sube defensa, guardar fuego baja ataque', function () {
     // Arranco de un talismán limpio nivel 1 sin gemas, y armo el loadout a mano.
     $t = Talisman::recomputar([
@@ -273,4 +285,54 @@ test('curar con la vida llena es rechazado', function () {
     $r = Talisman::aplicar($t, 'curar', null);
 
     expect($r['error'])->toBe('vida llena');
+});
+
+/** Talismán limpio nivel 1 con una sola gema (fieldeada o no), para recargar. */
+function talismanConUnaGema(array $gema, int $esencia): array
+{
+    return Talisman::recomputar([
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => $esencia, 'proximoId' => 99,
+        'bichosCaidos' => 0, 'gemasJuntadas' => 0, 'gemas' => [$gema],
+    ]);
+}
+
+test('recargar lleva la carga al tope y cuesta el nivel de la gema en esencia (028)', function () {
+    // N7 en 0: recargar cuesta 7 y la deja en 42 (7 × 6).
+    $t = talismanConUnaGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 7, 'carga' => 0, 'fieldeada' => true], 10);
+
+    $r = Talisman::aplicar($t, 'recargar', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(42); // 7 × CARGA_POR_NIVEL
+    expect($r['talisman']['esencia'])->toBe(3);            // 10 − 7
+});
+
+test('recargar cuesta el nivel completo aunque la gema tenga carga parcial y no hay parciales (028)', function () {
+    // N4 con 15/24: recargar igual cuesta 4 y la deja en 24 (no en 24−15).
+    $t = talismanConUnaGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 15, 'fieldeada' => true], 5);
+
+    $r = Talisman::aplicar($t, 'recargar', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(24); // 4 × 6, tope entero
+    expect($r['talisman']['esencia'])->toBe(1);            // 5 − 4
+});
+
+test('recargar sin esencia suficiente es rechazado y no muta nada (028)', function () {
+    $t = talismanConUnaGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 7, 'carga' => 0, 'fieldeada' => true], 6);
+
+    $r = Talisman::aplicar($t, 'recargar', 1);
+
+    expect($r['error'])->toBe('esencia insuficiente para recargar');
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(0); // intacta
+    expect($r['talisman']['esencia'])->toBe(6);           // intacta
+});
+
+test('recargar una gema con la carga llena es rechazado (028)', function () {
+    $t = talismanConUnaGema(['id' => 1, 'elemento' => 'tierra', 'nivel' => 3, 'carga' => 18, 'fieldeada' => true], 10);
+
+    $r = Talisman::aplicar($t, 'recargar', 1);
+
+    expect($r['error'])->toBe('la gema ya tiene la carga llena');
+    expect($r['talisman']['esencia'])->toBe(10); // no malgasta
 });

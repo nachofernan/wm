@@ -147,6 +147,7 @@
         .celda-tipo.puerta { color: gold; border-color: #7a6a2a; }
         .celda-tipo.llave { color: orange; border-color: #8a5a20; }
         .celda-tipo.colmena { color: var(--vida); border-color: #7a3030; }
+        .celda-poder b { color: #e0a94f; } /* poder x(1+t) por distancia (027) */
         /* Corazón de vida (♥) coloreado; los ♥ dentro de botones heredan el color del botón. */
         .ico-vida { color: var(--vida); }
         /* Botón de subir nivel cuando ya alcanza la esencia: blanco con glow que late. */
@@ -158,7 +159,20 @@
         .final { text-align: center; padding: 14px 0; } .final .titulo { font-size: 22px; font-weight: 700; }
         .final.victoria .titulo { color: var(--esencia); } .final.derrota .titulo { color: var(--vida); }
         .vacio { color: var(--tenue); font-size: 13px; font-style: italic; }
-        canvas { background: #f4f2ea; border-radius: 6px; align-self: flex-start; }
+        canvas { background: #f4f2ea; border-radius: 6px; display: block; }
+        /* El mapa y su overlay de combate: el bicho flota sobre el mapa ocioso
+           (no se camina en combate) en vez de abrir un card que corre el layout. */
+        .mapa-wrap { position: relative; align-self: flex-start; }
+        .combate-flotante {
+            position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+            width: min(88%, 340px); background: rgba(22, 14, 14, 0.93);
+            border: 1px solid var(--vida); border-radius: 10px; padding: 12px 14px;
+            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+        }
+        .combate-flotante h3 { margin: 0 0 8px; }
+        .mini-btn.recarga { color: var(--esencia); }
+        .mini-btn.recarga:disabled { color: var(--tenue); opacity: 0.5; }
+        .inv-vacio { color: var(--tenue); font-size: 13px; font-style: italic; padding: 6px 2px; }
         .pie { display: flex; gap: 16px; padding: 0 16px 16px; }
         .consola {
             flex: 1; background: #0d0c11; border: 1px solid var(--linea);
@@ -188,7 +202,33 @@
 
     <div x-data="game" x-on:keydown.window="mover($event)">
     <div class="maze-layout">
-        <canvas x-ref="canvas" class="shrink-0"></canvas>
+        <!-- El mapa y, flotando encima, el combate: como no se puede caminar con un
+             bicho abierto, la pelea se dibuja sobre el mapa ocioso en vez de abrir
+             un card nuevo en la columna (que corría el layout). -->
+        <div class="mapa-wrap shrink-0">
+            <canvas x-ref="canvas"></canvas>
+
+            <div class="combate-flotante" x-show="combate" x-cloak>
+                <h3 x-text="combate ? combate.monstruo.nombre : ''"></h3>
+                <template x-if="combate">
+                    <div>
+                        <div class="barra-cont"><div class="barra vida" :style="`width:${(combate.monstruo.vida / combate.monstruo.vidaMax) * 100}%`"></div></div>
+                        <div class="valor" x-text="`${combate.monstruo.vida} / ${combate.monstruo.vidaMax} — ${combate.monstruo.elemento}, def ${combate.monstruo.defensa}`"></div>
+
+                        <div class="telegrafia" x-show="combate.turno === 'tuTurno'">
+                            Anticipás su golpe: <b x-text="combate.monstruo.elemento"></b> nivel <span x-text="combate.monstruo.nivelAtaque"></span>, peso <span x-text="combate.monstruo.peso"></span>.
+                            Atacá con una gema, o guardá carga para bloquear.
+                        </div>
+
+                        <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
+                            <div style="font-weight:600;margin-bottom:6px" x-text="`Golpe entrante: ${combate.entrante ? combate.entrante.dano : ''} (${combate.entrante ? combate.entrante.elemento : ''})${combate.entrante && combate.entrante.critico ? ' ¡CRÍTICO!' : ''}`"></div>
+                            <div class="valor" style="margin-bottom:8px">Bloqueá con una gema (barato con el elemento que le gana) o comé el golpe.</div>
+                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} ♥`"></button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
 
         <!-- ── Mago + gemas: la columna que más crece ────────────────── -->
         <div class="col gemas">
@@ -260,6 +300,9 @@
                             <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
                             <div class="cab-der">
                                 <span class="esencia-num" x-text="g.carga === 0 ? 'inerte' : `${g.carga}/${cargaMax(g)} ⚡`"></span>
+                                <button class="mini-btn recarga" x-show="!combate" @click.stop="recargar(g.id)" :class="{ enviando: accionActiva === `recargar-${g.id}` }"
+                                        :disabled="cargando || !puedeRecargar(g)" :title="`recargar al tope (−${costoRecarga(g)} ✦ esencia)`"
+                                        x-text="`↻ ${costoRecarga(g)} ✦`"></button>
                                 <button class="icon-btn primario" @click.stop="guardar(g.id)" :class="{ enviando: accionActiva === `guardar-${g.id}` }" :disabled="cargando || combate" title="guardar en el inventario"><span class="icon-flecha der">▲</span></button>
                             </div>
                         </div>
@@ -287,33 +330,13 @@
                     <div class="celda-datos">
                         <span class="celda-tipo" :class="celdaActual()?.tipo" x-text="celdaActual()?.tipo"></span>
                         <span class="celda-riesgo">riesgo <b x-text="celdaActual() ? `${celdaActual().prob}%` : ''"></b></span>
+                        <span class="celda-dist">dist <b x-text="celdaActual()?.dist"></b></span>
+                        <span class="celda-poder">poder <b x-text="celdaActual() ? `×${celdaActual().poder.toFixed(2)}` : ''"></b></span>
                         <template x-if="celdaActual()?.elem">
                             <span class="nom"><span class="punto" :class="celdaActual().elem"></span><span x-text="celdaActual().elem"></span></span>
                         </template>
                     </div>
                 </div>
-            </div>
-
-            <!-- Combate activo -->
-            <div class="caja" x-show="combate" x-cloak>
-                <h3 x-text="combate ? combate.monstruo.nombre : ''"></h3>
-                <template x-if="combate">
-                    <div>
-                        <div class="barra-cont"><div class="barra vida" :style="`width:${(combate.monstruo.vida / combate.monstruo.vidaMax) * 100}%`"></div></div>
-                        <div class="valor" x-text="`${combate.monstruo.vida} / ${combate.monstruo.vidaMax} — ${combate.monstruo.elemento}, def ${combate.monstruo.defensa}`"></div>
-
-                        <div class="telegrafia" x-show="combate.turno === 'tuTurno'">
-                            Anticipás su golpe: <b x-text="combate.monstruo.elemento"></b> nivel <span x-text="combate.monstruo.nivelAtaque"></span>, peso <span x-text="combate.monstruo.peso"></span>.
-                            Atacá con una gema, o guardá carga para bloquear.
-                        </div>
-
-                        <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
-                            <div style="font-weight:600;margin-bottom:6px" x-text="`Golpe entrante: ${combate.entrante ? combate.entrante.dano : ''} (${combate.entrante ? combate.entrante.elemento : ''})${combate.entrante && combate.entrante.critico ? ' ¡CRÍTICO!' : ''}`"></div>
-                            <div class="valor" style="margin-bottom:8px">Bloqueá con una gema (barato con el elemento que le gana) o comé el golpe.</div>
-                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} ♥`"></button>
-                        </div>
-                    </div>
-                </template>
             </div>
 
             <!-- Resultado + botín -->
@@ -336,7 +359,7 @@
 
             <!-- Inventario: se estira hasta lo que le deja el resto de la fila (la
                  columna del mapa suele ser la más alta) y scrollea adentro. -->
-            <div class="caja inv-caja" x-show="talisman && inventario().length">
+            <div class="caja inv-caja" x-show="talisman">
                 <div class="inv-head">
                     <h2 style="margin:0">Inventario (<span x-text="inventario().length"></span>)</h2>
                     <select x-model="ordenInv" class="orden">
@@ -355,6 +378,7 @@
                     </template>
                 </div>
                 <div class="inv-lista">
+                    <div class="inv-vacio" x-show="!inventario().length">vacío — matá bichos para juntar gemas.</div>
                     <template x-for="g in inventarioMostrado()" :key="g.id">
                         <div class="gema fila" :class="[g.elemento, g.carga === 0 ? 'inerte' : '']">
                             <button class="icon-btn primario" @click="fieldear(g.id)" :class="{ enviando: accionActiva === `fieldear-${g.id}` }" :disabled="cargando || combate || !puedeFieldear(g)" title="equipar en el talismán"><span class="icon-flecha izq">▲</span></button>

@@ -1,5 +1,5 @@
 import { generarLaberinto } from './maze.js';
-import { marcas as calcularMarcas } from './mapaBuilder.js';
+import { marcas as calcularMarcas, distanciasEntrada } from './mapaBuilder.js';
 import { campo as calcularCampo } from './encuentroBuilder.js';
 import { crearPrng, randBelow } from './prng.js';
 
@@ -46,6 +46,11 @@ const RANURAS = 6;
 // solo deshabilita el botón cuando no alcanza; el servidor valida de verdad.
 const COSTO_FUSION = 1;
 
+// Tope de carga por nivel y costo de recarga — espejo de Talisman (026/028). El
+// tope de una gema es nivel × 6; recargarla al tope cuesta nivel × 1 de esencia.
+const CARGA_POR_NIVEL = 6;
+const COSTO_RECARGA_POR_NIVEL = 1;
+
 /** Relación del elemento a frente a b: 'ventaja' | 'reves' | 'neutral'. */
 function matchup(a, b) {
     if (VENCE_A[a] === b) return 'ventaja';
@@ -80,6 +85,7 @@ export function game() {
         seed: null,
         matriz: null,
         marcas: null,
+        distancias: null,
         campo: null,
         ancho: 0,
         alto: 0,
@@ -124,6 +130,7 @@ export function game() {
             this.registrar('entrás al laberinto. WASD o flechas para caminar.');
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
+            this.distancias = distanciasEntrada(this.matriz); // panel de celda (027)
             this.campo = calcularCampo(seed, ancho, alto);
             this.ancho = ancho;
             this.alto = alto;
@@ -271,9 +278,12 @@ export function game() {
         },
 
         // ── Panel de datos de celda (tooling de dev, DECISIÓN 027) ──────────
-        // Núcleo de colmena en (x,y): el campo de encuentros (016) los expone.
+        // ¿La celda está DENTRO de una colmena? El campo de encuentros (016)
+        // pinta un elemento solo en las celdas que un núcleo elevó sobre el
+        // ambiente — así que un elem no nulo es "estás en una colmena", no solo
+        // el núcleo exacto (que antes daba "normal" parado al lado del pico).
         esColmena(x, y) {
-            return this.campo.nucleos.some((n) => n.x === x && n.y === y);
+            return this.campo.celdas[y][x].elem !== null;
         },
 
         // Tipo de la celda (x,y): entrada / salida / puerta / llave / colmena /
@@ -288,12 +298,17 @@ export function game() {
         },
 
         // Datos de la celda donde está el mago, para el panel de la rueda. Reactivo:
-        // depende de mago.x/y, así que el panel se actualiza al caminar.
+        // depende de mago.x/y, así que el panel se actualiza al caminar. `dist` es
+        // la distancia a la entrada y `poder` el multiplicador del monstruo x(1+t)
+        // que el servidor aplica por distancia (027) — acá solo se muestra.
         celdaActual() {
-            if (!this.campo || !this.marcas) return null;
+            if (!this.campo || !this.marcas || !this.distancias) return null;
             const { x, y } = this.mago;
             const c = this.campo.celdas[y][x];
-            return { x, y, prob: c.prob, elem: c.elem, tipo: this.tipoCelda(x, y) };
+            const dist = this.distancias[y][x];
+            const total = this.marcas.salida.distancia;
+            const t = total > 0 && dist >= 0 ? dist / total : 0;
+            return { x, y, prob: c.prob, elem: c.elem, tipo: this.tipoCelda(x, y), dist, poder: 1 + t };
         },
 
         mover(evento) {
@@ -451,8 +466,19 @@ export function game() {
         async guardar(id) { await this.accionTalisman('guardar', id); this.reordenarField(); },
         async vaciar() { await this.accionTalisman('vaciar'); this.reordenarField(); },
         desguazar(id) { this.accionTalisman('desguazar', id); },
+        recargar(id) { this.accionTalisman('recargar', id); },
         subirNivel() { this.accionTalisman('subirNivel'); },
         curar() { this.accionTalisman('curar'); },
+
+        // Recargar una gema al tope (028): espejo de Talisman::recargar. costoRecarga
+        // es lo que cobra el servidor; puedeRecargar deshabilita el botón si ya está
+        // llena o no alcanza la esencia (el servidor igual valida de verdad).
+        costoRecarga(g) { return g.nivel * COSTO_RECARGA_POR_NIVEL; },
+        puedeRecargar(g) {
+            return this.talisman
+                && g.carga < g.nivel * CARGA_POR_NIVEL
+                && this.talisman.esencia >= this.costoRecarga(g);
+        },
 
         // Fieldear valida ranura libre Y cap (025); el botón replica ambos topes.
         puedeFieldear(g) {

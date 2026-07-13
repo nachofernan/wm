@@ -132,6 +132,16 @@ export function marcas(matriz) {
     };
 }
 
+/**
+ * Distancias BFS desde la entrada (0,0) a cada celda. Tooling de dev (027):
+ * alimenta el panel de celda (distancia + poder del monstruo x(1+t)). El
+ * poder REAL de combate lo calcula el servidor con MapaBuilder::dificultadCelda
+ * (autoridad, axioma 4); esto es solo para verlo mientras se testea.
+ */
+export function distanciasEntrada(matriz) {
+    return calcularDistancias(matriz, 0, 0);
+}
+
 export function esValido(marcas) {
     if (marcas.salida.distancia < CAMINO_MINIMO) return false;
     if (marcas.puertas.some((p) => !p)) return false;

@@ -43,6 +43,8 @@ final class Talisman
 
     public const COSTO_NIVEL = 10;   // esencia para subir de nivel N a N+1 = N × esto
 
+    public const VIDA_POR_NIVEL = 10; // +vidaMax por cada subida de nivel (028). Número de arranque.
+
     /**
      * Esencia pura que cuesta fusionar dos gemas (docs/DECISIONES.md 027). Además
      * del costo de oportunidad que la fusión ya tenía (rinde menos esencia que
@@ -51,6 +53,16 @@ final class Talisman
      * fusionarlas gratis en masa. Número de arranque (tuning).
      */
     public const COSTO_FUSION = 1;
+
+    /**
+     * Esencia por nivel que cuesta recargar una gema al tope (028): una N7 cuesta
+     * 7. La recarga es total —no hay cargas parciales— y el precio es el nivel
+     * completo aunque la gema conserve algo de carga. Esto reengancha la esencia
+     * con el combustible de combate: la versión que tira mucha "basurita" dejaba
+     * sin ⚡ para farmear, y recargar es la válvula. Número de arranque (tuning):
+     * si resulta muy barato, se sube (el candidato charlado es ×2 = doble nivel).
+     */
+    public const COSTO_RECARGA_POR_NIVEL = 1;
 
     /**
      * Acople gema→stat (modelo A, 024): las gemas fieldeadas con carga aportan
@@ -75,6 +87,7 @@ final class Talisman
             'desguazar' => self::desguazar($talisman, $gemaId),
             'fusionar' => self::fusionar($talisman, $gemaId, $gemaId2),
             'vaciar' => self::vaciar($talisman),
+            'recargar' => self::recargar($talisman, $gemaId),
             'subirNivel' => self::subirNivel($talisman),
             'curar' => self::curar($talisman),
             default => self::error($talisman, 'acción desconocida'),
@@ -225,6 +238,40 @@ final class Talisman
     }
 
     /**
+     * Recarga una gema al tope de carga (nivel × CARGA_POR_NIVEL) pagando
+     * nivel × COSTO_RECARGA_POR_NIVEL de esencia pura (028). Sin cargas parciales:
+     * va al tope entero, y cuesta lo mismo tenga 0 o casi lleno. Se bloquea si ya
+     * está al tope (no se malgasta esencia, como curar con la vida llena) o si no
+     * alcanza la esencia. Vale para cualquier gema, fieldeada o no.
+     */
+    private static function recargar(array $talisman, ?int $id): array
+    {
+        $g = self::gema($talisman, $id);
+        if ($g === null) {
+            return self::error($talisman, 'gema inválida');
+        }
+        $tope = $g['nivel'] * self::CARGA_POR_NIVEL;
+        if ($g['carga'] >= $tope) {
+            return self::error($talisman, 'la gema ya tiene la carga llena');
+        }
+        $costo = $g['nivel'] * self::COSTO_RECARGA_POR_NIVEL;
+        if ($talisman['esencia'] < $costo) {
+            return self::error($talisman, 'esencia insuficiente para recargar');
+        }
+
+        $talisman['esencia'] -= $costo;
+        foreach ($talisman['gemas'] as &$gema) {
+            if ($gema['id'] === $id) {
+                $gema['carga'] = $tope;
+                break;
+            }
+        }
+        unset($gema);
+
+        return self::ok($talisman);
+    }
+
+    /**
      * Manda todas las gemas fieldeadas al inventario de un saque (027). Guardar
      * nunca se rechaza, así que vaciar siempre es legal y no cuesta nada; si no
      * había ninguna fieldeada, el estado queda igual (recomputar es idempotente).
@@ -243,6 +290,10 @@ final class Talisman
      * Sube un nivel del talismán con esencia pura (progresión maestra, 014/024):
      * el nivel deriva el cap y los stats base, así que recomputar() (vía ok())
      * los actualiza solo. Reemplaza el viejo subirCap punto-a-punto (011).
+     *
+     * Además sube el tope de vida en VIDA_POR_NIVEL y cura al 100% (028): subir
+     * de nivel es también el sanador grueso. `vidaMax` no lo deriva recomputar
+     * (que corre en cada acción y pisaría la vida) — se muta acá, incremental.
      */
     private static function subirNivel(array $talisman): array
     {
@@ -252,6 +303,8 @@ final class Talisman
         }
         $talisman['esencia'] -= $costo;
         $talisman['nivel'] += 1;
+        $talisman['vidaMax'] += self::VIDA_POR_NIVEL;
+        $talisman['vida'] = $talisman['vidaMax']; // una subida cura al 100%
 
         return self::ok($talisman);
     }
