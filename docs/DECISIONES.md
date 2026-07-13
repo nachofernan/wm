@@ -792,3 +792,28 @@ daño aparte del peso (dos ejes ofensivos que se pisaban; se fundieron en el pes
 entrante (defensa impredecible sobre un recurso que estás presupuestando); mantener comer como opción (la
 decisión real es elemento + carga, no comer-vs-bloquear). Números de arranque: `coefPeso` 1.25/1.0/0.75, nivel
 `round(1 + t×6)`, vida×3 por déficit; todos se ajustan jugando.
+
+## 030 — Escapar de un combate pagando esencia — 2026-07-13
+**Decisión:** Se agrega una tercera acción de combate, `escapar`, y con ella un stat nuevo de arquetipo que va a
+ser el primer ladrillo del compendio de monstruos.
+
+- **Escapar cuesta esencia `= max(1, round(coefDestreza × nivel))` [IMPLEMENTADO].** Solo en **tu turno**: pagás
+  la esencia y el combate se cierra como `huida` — sin botín, sin contar el bicho como caído, y **la partida no
+  termina**. La colmena queda viva (es una colmena, no un bicho único): podés volver a cruzarla y pelearla o
+  huir de nuevo, pagando otra vez. El `coefDestreza` es un stat del arquetipo, definido como **`2 − coefPeso`**:
+  la inversa del peso. Tierra 0.75 (el gólem lento es barato de esquivar), aire 1.25 (la sílfide veloz es cara),
+  fuego/agua 1.0. A N4: tierra 3, fuego/agua 4, aire 5. Se guarda como `monstruo.escape` en el estado de combate
+  para mostrarlo y, más adelante, listarlo en el compendio.
+
+**Por qué:** El bloqueo (029) resolvió *aguantar* el combate; faltaba poder *no darlo*. Escapar le da una salida
+a los encuentros que no valen la pena —un bicho de un elemento contra el que tu loadout está flojo, o una pelea
+que te va a costar más carga/vida de la que rinde— y convierte a la esencia en la moneda de esa decisión, otro
+sumidero que compite con nivel/cura/fusión/recarga. Atar el costo a la **inversa del peso** cierra el arquetipo
+como personaje: tierra pega fuerte y es caro de frenar pero fácil de dejar atrás; aire pega flojo y es barato de
+frenar pero difícil de esquivar. Peso y destreza son los dos primeros ejes del compendio, y son opuestos por
+diseño, así que ningún bicho es fuerte en las dos puntas.
+**Se descartó:** permitir escapar durante la ventana de defensa (sería un "esquivar gratis" que vacía la
+economía del bloqueo — si el bicho ya arremetió, primero se paga ese golpe); escape gratis o con cooldown en vez
+de con esencia (sin costo no es una decisión); que huir consuma/mate la colmena (rompería el modelo de colmena
+persistente de 016). Números de arranque: `coefDestreza = 2 − coefPeso`, costo `round(destreza × nivel)` con piso
+1; se ajustan jugando.

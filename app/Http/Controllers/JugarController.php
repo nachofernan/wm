@@ -119,7 +119,7 @@ class JugarController extends Controller
         $run = Run::where('token', $token)->firstOrFail();
 
         $datos = $request->validate([
-            'accion' => 'required|in:atacar,bloquear',
+            'accion' => 'required|in:atacar,bloquear,escapar',
             'gemaId' => 'nullable|integer',
         ]);
 
@@ -143,6 +143,10 @@ class JugarController extends Controller
             // partida. Placeholder hasta que se construya el reset/revivida.
             $run->events()->create(['tipo' => 'derrota', 'payload' => []]);
             $run->terminado = true;
+        } elseif ($res['resultado'] === 'huida') {
+            // Escape (030): el combate se cierra pero la partida sigue; la colmena
+            // queda viva. Se registra append-only como cualquier otro cierre.
+            $run->events()->create(['tipo' => 'huida', 'payload' => []]);
         }
 
         $run->save();

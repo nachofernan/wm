@@ -25,14 +25,16 @@ final class MazeCombate
      * `vida`/`defensa` son las bases a nivel 1 (se escalan por factor de nivel);
      * `coefPeso` es el peso POR NIVEL (peso = round(coefPeso × nivel)): tierra
      * golpea pesado y caro de frenar (1.25), aire es una brisa (0.75), fuego y
-     * agua en el medio (1.0). `dificultad` ya solo pesa el multi-drop (027).
-     * Números de arranque.
+     * agua en el medio (1.0). `coefDestreza` (2 − coefPeso) es la INVERSA del
+     * peso: cuánto cuesta escaparle (DECISIÓN 030) — el gólem lento es barato de
+     * esquivar (0.75), la sílfide veloz es cara (1.25). `dificultad` ya solo pesa
+     * el multi-drop (027). Números de arranque.
      */
     private const ARQUETIPOS = [
-        'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'coefPeso' => 1.0, 'dificultad' => 3],
-        'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'coefPeso' => 1.0, 'dificultad' => 3],
-        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 70, 'defensa' => 30, 'coefPeso' => 1.25, 'dificultad' => 4],
-        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'coefPeso' => 0.75, 'dificultad' => 2],
+        'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
+        'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
+        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 70, 'defensa' => 30, 'coefPeso' => 1.25, 'coefDestreza' => 0.75, 'dificultad' => 4],
+        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'coefPeso' => 0.75, 'coefDestreza' => 1.25, 'dificultad' => 2],
     ];
 
     /**
@@ -71,7 +73,9 @@ final class MazeCombate
      * arquetipo; la prob de la celda suma un plus de vida (colmena caliente =
      * bicho más duro). El peso del golpe sale de `coefPeso × nivel` (029): así
      * el costo de frenarlo crece con la profundidad y no queda ridículo frente a
-     * la carga de las gemas grandes. `t` se guarda para el drop (027).
+     * la carga de las gemas grandes. El costo de ESCAPARLE sale de `coefDestreza
+     * × nivel` (030): la inversa del peso, así el pesado es barato de esquivar y
+     * el liviano caro. `t` se guarda para el drop (027).
      *
      * @param  float  $t  Distancia normalizada a la entrada.
      * @return array combate: {x,y,t,monstruo,turno,entrante,semilla,paso,resultado}
@@ -100,6 +104,7 @@ final class MazeCombate
                 'vidaMax' => $vida,
                 'defensa' => (int) round($base['defensa'] * $factor),
                 'peso' => (int) round($base['coefPeso'] * $nivel),
+                'escape' => max(1, (int) round($base['coefDestreza'] * $nivel)),
                 'dificultad' => $base['dificultad'],
             ],
             'turno' => 'tuTurno',
@@ -112,10 +117,12 @@ final class MazeCombate
 
     /**
      * Resuelve una acción de combate y devuelve el estado nuevo. Acciones:
-     * 'atacar' (gemaId) y 'bloquear' (gemaId). El combate vuelve null cuando
-     * termina; `resultado` dice cómo. La defensa es una sola acción (029): el
-     * golpe entrante SIEMPRE se paga por el talismán —carga primero, el déficit
-     * a vida ×3— así que no hay 'comer' ni bloqueo rechazado.
+     * 'atacar' (gemaId), 'bloquear' (gemaId) y 'escapar'. El combate vuelve null
+     * cuando termina; `resultado` dice cómo ('victoria' | 'derrota' | 'huida').
+     * La defensa es una sola acción (029): el golpe entrante SIEMPRE se paga por
+     * el talismán —carga primero, el déficit a vida ×3— así que no hay 'comer' ni
+     * bloqueo rechazado. Escapar (030) solo en tu turno: pagás esencia (el costo
+     * de escape del bicho) y cerrás el combate sin botín; la colmena sigue viva.
      *
      * @return array{
      *     combate: array|null, talisman: array, resultado: string|null,
@@ -209,6 +216,20 @@ final class MazeCombate
             return self::estado($combate, $talisman, $log);
         }
 
+        if ($accion === 'escapar') {
+            if ($combate['turno'] !== 'tuTurno') {
+                return $error('no es tu turno');
+            }
+            $costo = $combate['monstruo']['escape'];
+            if ($talisman['esencia'] < $costo) {
+                return $error('esencia insuficiente para escapar');
+            }
+            $talisman['esencia'] -= $costo;
+            $log[] = ['txt' => "escapás de {$combate['monstruo']['nombre']} (−{$costo} ✦)", 'crit' => false];
+
+            return self::huida($talisman, $log);
+        }
+
         return $error('acción desconocida');
     }
 
@@ -268,6 +289,18 @@ final class MazeCombate
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
             'drop' => $drops, 'error' => null, 'log' => $log,
+        ];
+    }
+
+    /**
+     * Escape (030): cierra el combate como huida. Sin botín y sin terminar la
+     * partida — la colmena queda viva y el mago sigue en pie con menos esencia.
+     */
+    private static function huida(array $talisman, array $log): array
+    {
+        return [
+            'combate' => null, 'talisman' => $talisman, 'resultado' => 'huida',
+            'drop' => null, 'error' => null, 'log' => $log,
         ];
     }
 

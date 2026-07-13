@@ -236,6 +236,55 @@ test('un bloqueo que no alcanza a pagarse con vida termina en derrota (029)', fu
     expect($r['talisman']['vida'])->toBe(0);
 });
 
+test('el costo de escape sale de coefDestreza × nivel: la inversa del peso (030)', function () {
+    // A t=0.5 el nivel es 4. destreza = 2 − coefPeso: tierra 0.75×4=3 (barato de
+    // esquivar), aire 1.25×4=5 (caro), agua 1.0×4=4.
+    $tierra = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0, 0.5);
+    $aire = MazeCombate::iniciar(1, 0, 0, 'aire', 0, 0, 0.5);
+    $agua = MazeCombate::iniciar(1, 0, 0, 'agua', 0, 0, 0.5);
+
+    expect($tierra['monstruo']['escape'])->toBe(3);
+    expect($aire['monstruo']['escape'])->toBe(5);
+    expect($agua['monstruo']['escape'])->toBe(4);
+});
+
+test('escapar en tu turno paga la esencia y cierra el combate como huida, sin botín (030)', function () {
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true]);
+    $talisman['esencia'] = 10;
+    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0, 0.5); // tierra N4 → escape 3
+
+    $r = MazeCombate::resolver($combate, $talisman, 'escapar', null);
+
+    expect($r['error'])->toBeNull();
+    expect($r['resultado'])->toBe('huida');
+    expect($r['combate'])->toBeNull();
+    expect($r['talisman']['esencia'])->toBe(7); // 10 − 3
+    expect($r['drop'])->toBeNull();
+    expect($r['talisman']['bichosCaidos'])->toBe(0); // no cuenta como caído
+});
+
+test('escapar sin esencia suficiente es un error y deja el combate abierto (030)', function () {
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true]);
+    $talisman['esencia'] = 2; // escape cuesta 3
+    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0, 0.5);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'escapar', null);
+
+    expect($r['error'])->not->toBeNull();
+    expect($r['resultado'])->toBeNull();
+    expect($r['talisman']['esencia'])->toBe(2); // no se descontó
+});
+
+test('escapar fuera de tu turno (en la ventana de defensa) es un error (030)', function () {
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true]);
+    $talisman['esencia'] = 10;
+    $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0, 0.5), 'tierra', 5);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'escapar', null);
+
+    expect($r['error'])->not->toBeNull();
+});
+
 test('los drops se pesan por la afinidad del monstruo (026): una colmena de fuego rinde sobre todo fuego y casi nunca agua', function () {
     // Mato un espectro de fuego sobre 300 seeds fijos y cuento los elementos
     // dropeados. Rueda: fuego vence a aire (25), cruza con tierra (10) y pierde
