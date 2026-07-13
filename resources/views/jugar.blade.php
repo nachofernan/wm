@@ -137,6 +137,21 @@
         .rueda .el.tierra { background: #2f2418; color: var(--tierra); }
         .rueda .el.aire { background: #2a2f18; color: var(--aire); }
         .rueda .fl { color: var(--tenue); }
+        /* Panel de datos de celda (dev): cuelga de la caja de la rueda. */
+        .celda-panel { margin-top: 11px; border-top: 1px solid var(--linea); padding-top: 9px; }
+        .celda-cab { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); margin-bottom: 6px; }
+        .celda-datos { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
+        .celda-datos .nom { text-transform: capitalize; display: inline-flex; align-items: center; gap: 4px; }
+        .celda-tipo { padding: 2px 8px; border-radius: 5px; text-transform: capitalize; font-weight: 600; background: var(--caja2); border: 1px solid var(--linea); color: var(--tenue); }
+        .celda-tipo.entrada, .celda-tipo.salida { color: #7fd18f; border-color: #3c8a58; }
+        .celda-tipo.puerta { color: gold; border-color: #7a6a2a; }
+        .celda-tipo.llave { color: orange; border-color: #8a5a20; }
+        .celda-tipo.colmena { color: var(--vida); border-color: #7a3030; }
+        /* Corazón de vida (♥) coloreado; los ♥ dentro de botones heredan el color del botón. */
+        .ico-vida { color: var(--vida); }
+        /* Botón de subir nivel cuando ya alcanza la esencia: blanco con glow que late. */
+        button.nivel-listo:not(:disabled) { color: #fff; border-color: var(--esencia); animation: pulso-nivel 1.7s ease-in-out infinite; }
+        @keyframes pulso-nivel { 0%, 100% { box-shadow: 0 0 5px rgba(85, 176, 136, 0.35); } 50% { box-shadow: 0 0 12px rgba(85, 176, 136, 0.85); } }
         .telegrafia { border: 1px dashed #7a6f44; background: #26230f; border-radius: 8px; padding: 9px 11px; font-size: 13px; margin: 10px 0; }
         .entrante { border: 1px solid var(--vida); background: #2a1414; border-radius: 8px; padding: 11px; margin-top: 10px; }
         .drop { border: 1px solid #d8c24a; background: #29260f; border-radius: 8px; padding: 12px; margin-top: 12px; }
@@ -181,16 +196,16 @@
                 <div class="hoja-cab">
                     <h3 style="margin:0">El mago</h3>
                     <span class="sync" x-show="cargando" x-cloak>sincronizando…</span>
-                    <span class="badge-esencia" x-show="!cargando" x-text="`esencia ${talisman.esencia}`" title="esencia disponible"></span>
+                    <span class="badge-esencia" x-show="!cargando" x-text="`${talisman.esencia} ✦`" title="esencia disponible"></span>
                 </div>
                 <div class="hoja-vida">
                     <div class="hoja-vida-cab">
-                        <span>vida</span>
+                        <span><span class="ico-vida">♥</span> vida</span>
                         <span class="hoja-vida-valor">
                             <b x-text="`${talisman.vida}/${talisman.vidaMax}`"></b>
                             <button class="mini-btn" x-show="!combate && !cargando && talisman.vida < talisman.vidaMax" @click="curar()" :class="{ enviando: accionActiva === 'curar-' }"
                                 :disabled="cargando || talisman.esencia < 1"
-                                title="convertir esencia en vida (1:1)" x-text="`curar +${cuantoCura()}`"></button>
+                                title="convertir esencia en vida (1:1)" x-text="`curar +${cuantoCura()} ♥`"></button>
                         </span>
                     </div>
                     <div class="barra-cont"><div class="barra vida" :style="`width:${(talisman.vida / talisman.vidaMax) * 100}%`"></div></div>
@@ -201,9 +216,11 @@
                         nivel
                         <div class="stat-acc">
                             <b x-text="talisman.nivel"></b>
-                            <button class="mini-btn" x-show="!combate && !cargando" @click="subirNivel()" :class="{ enviando: accionActiva === 'subirNivel-' }"
-                                :disabled="cargando || talisman.esencia < costoNivel()" :title="`subir nivel del talismán (${costoNivel()} esencia)`"
-                                x-text="`+1 · ${costoNivel()} es.`"></button>
+                            <button class="mini-btn" x-show="!combate && !cargando" @click="subirNivel()"
+                                :class="{ enviando: accionActiva === 'subirNivel-', 'nivel-listo': talisman.esencia >= costoNivel() }"
+                                :disabled="cargando || talisman.esencia < costoNivel()"
+                                :title="talisman.esencia >= costoNivel() ? `subir nivel del talismán (cuesta ${costoNivel()} ✦)` : `te faltan ${costoNivel() - talisman.esencia} ✦ para subir de nivel`"
+                                x-text="talisman.esencia >= costoNivel() ? `Subir nivel · −${costoNivel()} ✦` : `${talisman.esencia}/${costoNivel()} ✦`"></button>
                         </div>
                     </div>
                     <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
@@ -262,7 +279,19 @@
                 <div class="rueda-ciclo">
                     <span class="el fuego">fuego</span><span class="fl">→</span><span class="el aire">aire</span><span class="fl">→</span><span class="el tierra">tierra</span><span class="fl">→</span><span class="el agua">agua</span><span class="fl">→</span><span class="el fuego">fuego</span>
                 </div>
-                <div class="valor" style="margin-top:6px">Le pegás al que le ganás (×1.5) y flojo al que te gana (×0.5). Para bloquear, la gema que le gana al golpe gasta la mitad.</div>
+
+                <!-- Panel de datos de celda (tooling de dev, DECISIÓN 027): hoy se ve
+                     todo; la visión (014) lo revelará gradual y la niebla lo tapará. -->
+                <div class="celda-panel" x-show="celdaActual()" x-cloak>
+                    <div class="celda-cab">celda actual <span x-text="celdaActual() ? `(${celdaActual().x}, ${celdaActual().y})` : ''"></span></div>
+                    <div class="celda-datos">
+                        <span class="celda-tipo" :class="celdaActual()?.tipo" x-text="celdaActual()?.tipo"></span>
+                        <span class="celda-riesgo">riesgo <b x-text="celdaActual() ? `${celdaActual().prob}%` : ''"></b></span>
+                        <template x-if="celdaActual()?.elem">
+                            <span class="nom"><span class="punto" :class="celdaActual().elem"></span><span x-text="celdaActual().elem"></span></span>
+                        </template>
+                    </div>
+                </div>
             </div>
 
             <!-- Combate activo -->
@@ -281,7 +310,7 @@
                         <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
                             <div style="font-weight:600;margin-bottom:6px" x-text="`Golpe entrante: ${combate.entrante ? combate.entrante.dano : ''} (${combate.entrante ? combate.entrante.elemento : ''})${combate.entrante && combate.entrante.critico ? ' ¡CRÍTICO!' : ''}`"></div>
                             <div class="valor" style="margin-bottom:8px">Bloqueá con una gema (barato con el elemento que le gana) o comé el golpe.</div>
-                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} a la vida`"></button>
+                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} ♥`"></button>
                         </div>
                     </div>
                 </template>
@@ -337,7 +366,7 @@
                                     @click="clicFusion(g)" :disabled="cargando || (modoFusion(g) === 'objetivo' && talisman.esencia < costoFusion())"
                                     :title="modoFusion(g) === 'objetivo' ? `fusionar estas dos en una n${g.nivel + 1} · cuesta ${costoFusion()} ✦${talisman.esencia < costoFusion() ? ' (sin esencia)' : ''}` : (modoFusion(g) === 'seleccionada' ? 'cancelar fusión' : 'fusionar: elegí el par')"
                                     x-text="modoFusion(g) === 'objetivo' ? `⚗ fusionar · ${costoFusion()} ✦` : '⚗'"></button>
-                                <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} esencia)`" x-text="`+${g.nivel}`"></button>
+                                <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} ✦ esencia)`" x-text="`+${g.nivel} ✦`"></button>
                             </div>
                         </div>
                     </template>

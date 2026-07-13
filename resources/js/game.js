@@ -270,6 +270,32 @@ export function game() {
             return this.marcas.salida.x === x && this.marcas.salida.y === y;
         },
 
+        // ── Panel de datos de celda (tooling de dev, DECISIÓN 027) ──────────
+        // Núcleo de colmena en (x,y): el campo de encuentros (016) los expone.
+        esColmena(x, y) {
+            return this.campo.nucleos.some((n) => n.x === x && n.y === y);
+        },
+
+        // Tipo de la celda (x,y): entrada / salida / puerta / llave / colmena /
+        // normal. Es el dato que la visión (014) revelará gradual; hoy se ve entero.
+        tipoCelda(x, y) {
+            if (this.marcas.entrada.x === x && this.marcas.entrada.y === y) return 'entrada';
+            if (this.esSalida(x, y)) return 'salida';
+            if (this.buscarPuerta(x, y) !== -1) return 'puerta';
+            if (this.buscarLlave(x, y) !== -1) return 'llave';
+            if (this.esColmena(x, y)) return 'colmena';
+            return 'normal';
+        },
+
+        // Datos de la celda donde está el mago, para el panel de la rueda. Reactivo:
+        // depende de mago.x/y, así que el panel se actualiza al caminar.
+        celdaActual() {
+            if (!this.campo || !this.marcas) return null;
+            const { x, y } = this.mago;
+            const c = this.campo.celdas[y][x];
+            return { x, y, prob: c.prob, elem: c.elem, tipo: this.tipoCelda(x, y) };
+        },
+
         mover(evento) {
             // No se camina con un combate abierto, con un drop sin resolver, ni
             // con una llamada al servidor en vuelo (abrir combate): la pelea frena
@@ -418,10 +444,13 @@ export function game() {
             this.aplicarEstado(datos.estado);
         },
 
-        fieldear(id) { this.accionTalisman('fieldear', id); },
-        guardar(id) { this.accionTalisman('guardar', id); },
+        // fieldear/guardar/vaciar cambian el SET fieldeado, así que reordenan las
+        // fieldeadas al terminar (auto-orden en add/remove, además del select y el
+        // ↻). El await asegura que el estado ya llegó antes de recalcular el orden.
+        async fieldear(id) { await this.accionTalisman('fieldear', id); this.reordenarField(); },
+        async guardar(id) { await this.accionTalisman('guardar', id); this.reordenarField(); },
+        async vaciar() { await this.accionTalisman('vaciar'); this.reordenarField(); },
         desguazar(id) { this.accionTalisman('desguazar', id); },
-        vaciar() { this.accionTalisman('vaciar'); },
         subirNivel() { this.accionTalisman('subirNivel'); },
         curar() { this.accionTalisman('curar'); },
 
@@ -508,10 +537,11 @@ export function game() {
             return this.ordenarGemas(g, this.ordenInv);
         },
 
-        // Recalcula el orden congelado de las fieldeadas. Se llama SOLO desde el
-        // onchange del select: ni al equipar/guardar ni al atacar. Si se reordenara
-        // en vivo, bajar la carga de una gema la haría saltar de lugar en plena
-        // pelea, que es justo lo molesto que se quiere evitar.
+        // Recalcula el orden congelado de las fieldeadas. Se llama en tres puntos:
+        // el onchange del select, el ↻, y al agregar/sacar una gema (fieldear/
+        // guardar/vaciar) — NO en cada ataque. Si se reordenara en vivo, bajar la
+        // carga de una gema la haría saltar de lugar en plena pelea, que es justo
+        // lo molesto que se quiere evitar.
         reordenarField() {
             this.ordenFieldIds = this.ordenarGemas(this.fieldeadas(), this.ordenField).map((g) => g.id);
         },
@@ -553,13 +583,13 @@ export function game() {
         // (nivel × 6, 026). Referencial — cuánto le queda de su máximo.
         anchoEsencia(g) { return Math.min(100, (g.carga / (g.nivel * 6 || 1)) * 100); },
 
-        // Etiqueta del costo de atacar: carga si alcanza, o "X ⚡ +Y vida" cuando
-        // el faltante se paga con vida a la penalidad de la 021. Espejo de MazeCombate.
+        // Etiqueta del costo de atacar: carga si alcanza, o "X ⚡ +Y ♥" cuando el
+        // faltante se paga con vida a la penalidad de la 021. Espejo de MazeCombate.
         costoAtaqueLabel(g) {
             const costo = g.nivel; // atacar cuesta carga = nivel
             if (g.carga >= costo) return `${costo} ⚡`;
             const vida = (costo - g.carga) * COMBATE.vidaPorEsencia;
-            return g.carga > 0 ? `${g.carga} ⚡ +${vida} vida` : `${vida} vida`;
+            return g.carga > 0 ? `${g.carga} ⚡ +${vida} ♥` : `${vida} ♥`;
         },
 
         // Cuánta vida repone curar ahora: esencia pura → vida 1:1, sin pasarse del
