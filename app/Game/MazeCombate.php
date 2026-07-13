@@ -20,14 +20,19 @@ namespace App\Game;
 final class MazeCombate
 {
     /**
-     * Arquetipos de monstruo por elemento. Tomados de los rivales prototipados
-     * en /pelea y /mago. Números de arranque.
+     * Arquetipos de monstruo por elemento (DECISIÓN 029). El arquetipo es la
+     * FORMA; el nivel del bicho (por distancia) es el TIER que escala todo.
+     * `vida`/`defensa` son las bases a nivel 1 (se escalan por factor de nivel);
+     * `coefPeso` es el peso POR NIVEL (peso = round(coefPeso × nivel)): tierra
+     * golpea pesado y caro de frenar (1.25), aire es una brisa (0.75), fuego y
+     * agua en el medio (1.0). `dificultad` ya solo pesa el multi-drop (027).
+     * Números de arranque.
      */
     private const ARQUETIPOS = [
-        'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'nivelAtaque' => 7, 'peso' => 3, 'dificultad' => 3],
-        'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'nivelAtaque' => 5, 'peso' => 2, 'dificultad' => 3],
-        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 70, 'defensa' => 30, 'nivelAtaque' => 6, 'peso' => 2, 'dificultad' => 4],
-        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'nivelAtaque' => 5, 'peso' => 1, 'dificultad' => 2],
+        'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'coefPeso' => 1.0, 'dificultad' => 3],
+        'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'coefPeso' => 1.0, 'dificultad' => 3],
+        'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 70, 'defensa' => 30, 'coefPeso' => 1.25, 'dificultad' => 4],
+        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'coefPeso' => 0.75, 'dificultad' => 2],
     ];
 
     /**
@@ -58,15 +63,17 @@ final class MazeCombate
 
     /**
      * Arranca un combate en la celda (x,y). El elemento del monstruo sale del
-     * encuentro (o, para un encuentro de ambiente sin elemento, se sortea). El
-     * arquetipo (por elemento) es la FORMA del bicho; la distancia a la entrada
-     * `$t` (0.0..1.0, DECISIÓN 027) es su TIER: escala vida/defensa/ataque por
-     * `1 + t` — ~1× en la entrada, ~2× en la salida — sin cambiar qué clase de
-     * pelea da. La prob de la celda suma un plus de vida (colmena caliente =
-     * bicho más duro). `t` se guarda en el blob porque el drop lo necesita en
-     * la victoria (loot deslizante, DECISIÓN 027 punto 2).
+     * encuentro (o, para un encuentro de ambiente sin elemento, se sortea). La
+     * distancia a la entrada `$t` (0.0..1.0, MapaBuilder::dificultadCelda) fija
+     * el NIVEL entero del bicho (1 en la entrada, 7 en el fondo, DECISIÓN 029):
+     * el tier único del que sale todo. Vida y defensa escalan por
+     * `factor = 1 + (nivel−1)/6` (1.0 a N1, 2.0 a N7) sobre las bases del
+     * arquetipo; la prob de la celda suma un plus de vida (colmena caliente =
+     * bicho más duro). El peso del golpe sale de `coefPeso × nivel` (029): así
+     * el costo de frenarlo crece con la profundidad y no queda ridículo frente a
+     * la carga de las gemas grandes. `t` se guarda para el drop (027).
      *
-     * @param  float  $t  Distancia normalizada a la entrada (MapaBuilder::dificultadCelda).
+     * @param  float  $t  Distancia normalizada a la entrada.
      * @return array combate: {x,y,t,monstruo,turno,entrante,semilla,paso,resultado}
      */
     public static function iniciar(int $seed, int $x, int $y, ?string $elem, int $prob, int $indice, float $t = 0.0): array
@@ -77,7 +84,8 @@ final class MazeCombate
         $elem ??= EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
         $base = self::ARQUETIPOS[$elem];
 
-        $factor = 1 + $t; // 1× en la entrada, ~2× en la salida (027). Números de arranque.
+        $nivel = max(1, min(7, (int) round(1 + $t * 6)));
+        $factor = 1 + ($nivel - 1) / 6; // 1.0 a N1, 2.0 a N7. Números de arranque.
         $vida = (int) round(($base['vida'] + $prob) * $factor);
 
         return [
@@ -87,11 +95,11 @@ final class MazeCombate
             'monstruo' => [
                 'nombre' => $base['nombre'],
                 'elemento' => $elem,
+                'nivel' => $nivel,
                 'vida' => $vida,
                 'vidaMax' => $vida,
                 'defensa' => (int) round($base['defensa'] * $factor),
-                'nivelAtaque' => max(1, (int) round($base['nivelAtaque'] * $factor)),
-                'peso' => $base['peso'],
+                'peso' => (int) round($base['coefPeso'] * $nivel),
                 'dificultad' => $base['dificultad'],
             ],
             'turno' => 'tuTurno',
@@ -104,8 +112,10 @@ final class MazeCombate
 
     /**
      * Resuelve una acción de combate y devuelve el estado nuevo. Acciones:
-     * 'atacar' (gemaId), 'comer', 'bloquear' (gemaId). El combate vuelve null
-     * cuando termina; `resultado` dice cómo.
+     * 'atacar' (gemaId) y 'bloquear' (gemaId). El combate vuelve null cuando
+     * termina; `resultado` dice cómo. La defensa es una sola acción (029): el
+     * golpe entrante SIEMPRE se paga por el talismán —carga primero, el déficit
+     * a vida ×3— así que no hay 'comer' ni bloqueo rechazado.
      *
      * @return array{
      *     combate: array|null, talisman: array, resultado: string|null,
@@ -160,40 +170,39 @@ final class MazeCombate
             return self::golpeMonstruo($combate, $talisman, $log);
         }
 
-        if ($accion === 'comer') {
-            if ($combate['turno'] !== 'defensa' || $combate['entrante'] === null) {
-                return $error('no hay golpe entrante');
-            }
-            $e = $combate['entrante'];
-            $talisman['vida'] = max(0, $talisman['vida'] - $e['dano']);
-            $log[] = ['txt' => "comés el golpe — {$e['dano']} a la vida", 'crit' => false];
-
-            if ($talisman['vida'] <= 0) {
-                return self::derrota($combate, $talisman, $log);
-            }
-            $combate['turno'] = 'tuTurno';
-            $combate['entrante'] = null;
-
-            return self::estado($combate, $talisman, $log);
-        }
-
         if ($accion === 'bloquear') {
             if ($combate['turno'] !== 'defensa' || $combate['entrante'] === null) {
                 return $error('no hay golpe entrante');
             }
             $g = self::gema($talisman, $gemaId, true);
-            if ($g === null || $g['carga'] <= 0) {
-                return $error('gema inválida o inerte');
+            if ($g === null) {
+                return $error('gema inválida');
             }
             $e = $combate['entrante'];
-            $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
-            $costo = (new CombatResolver($prng))->costoBloqueo($e['peso'], $g['elemento'], $e['elemento']);
+            // El costo de bloqueo es determinista (peso × elemento, sin azar): un
+            // recurso a presupuestar, no una tirada. La carga paga primero; lo que
+            // falte se paga con vida ×3, igual que castear una gema seca (029).
+            $resolver = new CombatResolver(new Prng(0));
+            $costo = $resolver->costoBloqueo($e['peso'], $g['elemento'], $e['elemento']);
+            $cargaPaga = min($g['carga'], $costo);
+            $deficit = $costo - $cargaPaga;
+            $costoVida = $resolver->costoVida($deficit);
 
-            if ($g['carga'] < $costo) {
-                return $error("{$g['elemento']} tiene {$g['carga']} de carga; bloquear cuesta {$costo}");
+            if ($cargaPaga > 0) {
+                self::gastarGema($talisman, $gemaId, $cargaPaga);
             }
-            self::gastarGema($talisman, $gemaId, $costo);
-            $log[] = ['txt' => "bloqueás con {$g['elemento']} — golpe anulado (−{$costo} ⚡)", 'crit' => false];
+            $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
+
+            if ($deficit === 0) {
+                $log[] = ['txt' => "bloqueás con {$g['elemento']} — golpe frenado (−{$costo} ⚡)", 'crit' => false];
+            } else {
+                $detalle = $cargaPaga > 0 ? "{$cargaPaga} ⚡ + {$costoVida} de vida" : "{$costoVida} de vida";
+                $log[] = ['txt' => "bloqueás con {$g['elemento']} sin carga para todo — pagás {$detalle}", 'crit' => false];
+            }
+
+            if ($talisman['vida'] <= 0) {
+                return self::derrota($combate, $talisman, $log);
+            }
             $combate['turno'] = 'tuTurno';
             $combate['entrante'] = null;
 
@@ -215,14 +224,17 @@ final class MazeCombate
         return (new CombatResolver($prng))->golpe($nivel, $elemAtacante, $defensa, $elemDefensor, $bonusAtaque);
     }
 
-    /** El monstruo devuelve el golpe: fija el entrante y pasa a defensa. */
+    /**
+     * El monstruo arremete: pasa a defensa y fija el entrante. Ya no lleva daño
+     * propio (029) — la amenaza ES su peso (por nivel), y el daño real se decide
+     * al bloquear según lo que la carga no cubra. Determinista, sin tirada.
+     */
     private static function golpeMonstruo(array $combate, array $talisman, array $log): array
     {
         $m = $combate['monstruo'];
-        $r = self::golpe($combate, $m['nivelAtaque'], $m['elemento'], $talisman['defensa'], 'ninguno');
         $combate['turno'] = 'defensa';
-        $combate['entrante'] = ['dano' => $r['dano'], 'elemento' => $m['elemento'], 'peso' => $m['peso'], 'critico' => $r['critico']];
-        $log[] = ['txt' => "{$m['nombre']} lanza {$m['elemento']} — {$r['dano']} entrantes".($r['critico'] ? ' ¡CRÍTICO!' : ''), 'crit' => $r['critico']];
+        $combate['entrante'] = ['elemento' => $m['elemento'], 'peso' => $m['peso']];
+        $log[] = ['txt' => "{$m['nombre']} arremete ({$m['elemento']}, peso {$m['peso']}) — bloqueá con una gema", 'crit' => false];
 
         return self::estado($combate, $talisman, $log);
     }

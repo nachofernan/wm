@@ -756,3 +756,39 @@ fusión (027) y carga — cuatro sumideros que compiten, que es exactamente la t
 proporcional (más "justa" pero borra la decisión de cuándo recargar); costo de recarga plano en vez de por nivel
 (el por-nivel hace que mantener gemas grandes cargadas sea caro, coherente con que son las que rinden). Números
 de arranque: `+10` de vida, `×1` de recarga; ambos se ajustan jugando.
+
+## 029 — El monstruo tiene nivel; defensa unificada por el talismán — 2026-07-13
+**Decisión:** Reescribe la economía de defensa y el modelo de escala del monstruo. Salió de jugar: el costo de
+bloqueo era plano (peso 2-3) mientras la carga crece con el nivel de la gema (N7 = 42 ⚡), así que frenar era
+prácticamente gratis y lo único que dolía era el golpe sin frenar. Dos cambios acoplados.
+
+- **El monstruo tiene un `nivel` entero 1-7, derivado de la distancia [IMPLEMENTADO].** `nivel =
+  clamp(round(1 + t×6), 1, 7)` → N1 en la entrada, N7 en el fondo (puede tocar N7 o no). Es el **tier único** del
+  que sale todo, como el nivel de una gema. Reemplaza el factor continuo `×(1+t)` de la 027 por un eje discreto:
+  vida y defensa escalan por `factor = 1 + (nivel−1)/6` (1.0 a N1, 2.0 a N7) sobre las bases del arquetipo. El
+  arquetipo pasa a llevar `coefPeso` (peso POR NIVEL) en vez de un `peso` plano, y **se le saca `nivelAtaque`**:
+  `peso = round(coefPeso × nivel)` con tierra 1.25 / fuego 1.0 / agua 1.0 / aire 0.75 (N4 → tierra 5, fuego/agua
+  4, aire 3). Así el costo de frenar crece con la profundidad y le da identidad al peso (tierra golpea pesado y
+  caro de parar, aire es una brisa). El loot sigue usando `t` directo (027), no el nivel discreto.
+
+- **La defensa es una sola acción: el golpe SIEMPRE se paga por el talismán [IMPLEMENTADO].** Se va **comer**.
+  Bloqueás con una gema; el costo en carga es `round(peso × elemento)` (×0.5 si tu gema le gana al golpe, ×1
+  neutro, ×2 si pierde), determinista, sin crítico ni banda — es un recurso a presupuestar. La **carga paga
+  primero y el déficit va a vida ×3** (`vidaPorEsencia`), idéntico a castear una gema sin carga (021). Bloquear
+  **nunca se rechaza**: una gema seca simplemente paga todo con vida. El golpe del bicho deja de tener "daño
+  extra" propio (por eso se fue `nivelAtaque`): el daño *es* el costo de bloqueo que no cubriste con carga. En el
+  cliente, la pantalla del bicho pasó a ser una **hoja de stats / maqueta de modelo centrada sobre el mapa**
+  (nombre, elemento, nivel, vida, defensa, peso), sin la caja de telegrafía ni botón de comer.
+
+**Por qué:** Atar el peso al nivel del bicho arregla la tijera carga/bloqueo (a más profundidad, más caro frenar)
+y de paso convierte al peso en el eje de personalidad ofensiva de cada arquetipo, que era lo que buscábamos al
+rebalancear. Unificar defensa en una sola acción con caída a vida borra la microdecisión comer-vs-bloquear (que
+en la práctica era casi siempre bloquear) y la reemplaza por decisiones más ricas: **con qué elemento** bloqueás
+(la eficiencia ×0.5/×2) y **cuánta carga** tenés para gastar — que enganchan con el loadout y con la economía de
+recarga (028). El daño a vida es 1:1 con el costo no cubierto ×3, misma regla que el ataque: una sola mecánica
+de "carga primero, vida después" para las dos puntas del combate.
+**Se descartó:** dejar el peso plano y escalar solo el resto (la tijera seguía); conservar `nivelAtaque` como
+daño aparte del peso (dos ejes ofensivos que se pisaban; se fundieron en el peso); crítico/banda en el golpe
+entrante (defensa impredecible sobre un recurso que estás presupuestando); mantener comer como opción (la
+decisión real es elemento + carga, no comer-vs-bloquear). Números de arranque: `coefPeso` 1.25/1.0/0.75, nivel
+`round(1 + t×6)`, vida×3 por déficit; todos se ajustan jugando.

@@ -449,7 +449,6 @@ export function game() {
         },
 
         atacar(id) { this.accionCombate('atacar', id); },
-        comer() { this.accionCombate('comer'); },
         bloquear(id) { this.accionCombate('bloquear', id); },
 
         // ── Talismán: armar el loadout entre peleas ────────────────────────
@@ -642,12 +641,22 @@ export function game() {
             return Math.max(1, Math.round(poder * mitig * mult * bono));
         },
 
-        // Costo en carga de bloquear el golpe entrante con la gema g. Espejo de
-        // CombatResolver::costoBloqueo (el azar del bloqueo es chico; esto es la media).
+        // Costo en carga de bloquear el golpe entrante con la gema g (029):
+        // peso × elemento, determinista. Espejo de CombatResolver::costoBloqueo.
         costoBloqueoEstimado(g) {
             if (!this.combate || !this.combate.entrante) return 0;
             const factor = { ventaja: COMBATE.defVentaja, reves: COMBATE.defReves, neutral: COMBATE.defNeutral };
             return Math.max(1, Math.round(this.combate.entrante.peso * factor[matchup(g.elemento, this.combate.entrante.elemento)]));
+        },
+
+        // Etiqueta del bloqueo (029): la carga paga primero; lo que falte va a vida
+        // ×3. "X ⚡" si alcanza, "X ⚡ +Y ♥" o "Y ♥" cuando cae a vida. Espejo de
+        // MazeCombate::bloquear — la gema seca ya no rechaza, paga todo con vida.
+        costoBloqueoLabel(g) {
+            const costo = this.costoBloqueoEstimado(g);
+            if (g.carga >= costo) return `${costo} ⚡`;
+            const vida = (costo - g.carga) * COMBATE.vidaPorEsencia;
+            return g.carga > 0 ? `${g.carga} ⚡ +${vida} ♥` : `${vida} ♥`;
         },
 
         // Relación de la gema con el monstruo actual, para teñir el botón de ataque.

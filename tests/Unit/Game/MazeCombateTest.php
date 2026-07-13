@@ -21,17 +21,36 @@ test('iniciar deriva un monstruo del elemento del encuentro, con vida escalada p
     expect($c['resultado'])->toBeNull();
 });
 
-test('la distancia a la entrada escala el bicho ~×2 conservando su arquetipo (027)', function () {
+test('la distancia fija el nivel del bicho (N1 entrada, N7 fondo) y de ahí escala vida/defensa/peso (029)', function () {
     $entrada = MazeCombate::iniciar(42, 23, 4, 'agua', 11, 0, 0.0);
     $salida = MazeCombate::iniciar(42, 23, 4, 'agua', 11, 0, 1.0);
 
-    // Mismo elemento/forma; la salida pega ~el doble en vida, defensa y ataque.
+    // Mismo elemento/forma; el nivel salta de 1 a 7 con la distancia.
     expect($entrada['monstruo']['elemento'])->toBe($salida['monstruo']['elemento']);
-    expect($entrada['monstruo']['vida'])->toBe(60 + 11);      // factor 1
-    expect($salida['monstruo']['vida'])->toBe((60 + 11) * 2); // factor 2
+    expect($entrada['monstruo']['nivel'])->toBe(1);
+    expect($salida['monstruo']['nivel'])->toBe(7);
+
+    // Vida y defensa escalan ×2 (factor 1.0 a N1, 2.0 a N7).
+    expect($entrada['monstruo']['vida'])->toBe(60 + 11);
+    expect($salida['monstruo']['vida'])->toBe((60 + 11) * 2);
     expect($salida['monstruo']['defensa'])->toBe($entrada['monstruo']['defensa'] * 2);
-    expect($salida['monstruo']['nivelAtaque'])->toBe($entrada['monstruo']['nivelAtaque'] * 2);
+
+    // Peso = coefPeso × nivel: agua es 1.0, así que N1→1 y N7→7.
+    expect($entrada['monstruo']['peso'])->toBe(1);
+    expect($salida['monstruo']['peso'])->toBe(7);
     expect($salida['t'])->toBe(1.0);
+});
+
+test('el peso del golpe sale de coefPeso × nivel: tierra pesa más que aire al mismo nivel (029)', function () {
+    // A t=0.5 el nivel es round(1 + 3) = 4. tierra 1.25×4=5, aire 0.75×4=3, agua 1.0×4=4.
+    $tierra = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0, 0.5);
+    $aire = MazeCombate::iniciar(1, 0, 0, 'aire', 0, 0, 0.5);
+    $agua = MazeCombate::iniciar(1, 0, 0, 'agua', 0, 0, 0.5);
+
+    expect($tierra['monstruo']['nivel'])->toBe(4);
+    expect($tierra['monstruo']['peso'])->toBe(5);
+    expect($aire['monstruo']['peso'])->toBe(3);
+    expect($agua['monstruo']['peso'])->toBe(4);
 });
 
 test('el loot se desliza con la distancia: bajo en la entrada, alto en la salida, N7 raro (027)', function () {
@@ -49,7 +68,9 @@ test('el loot se desliza con la distancia: bajo en la entrada, alto en la salida
 
             $r = ['combate' => $combate, 'talisman' => $talisman, 'resultado' => null];
             while ($r['resultado'] === null) {
-                $accion = $r['combate']['turno'] === 'tuTurno' ? 'atacar' : 'comer';
+                // Atacar en tu turno; en defensa, bloquear con la misma gema
+                // sobrada (carga de sobra → sin costo de vida). Ya no hay comer.
+                $accion = $r['combate']['turno'] === 'tuTurno' ? 'atacar' : 'bloquear';
                 $r = MazeCombate::resolver($r['combate'], $r['talisman'], $accion, 99);
             }
 
@@ -151,42 +172,68 @@ test('un golpe letal mata al monstruo, cierra el combate y dropea una gema', fun
     expect($r['talisman']['gemasJuntadas'])->toBe(count($r['drop']));
 });
 
-test('comer un golpe entrante baja la vida y vuelve a tu turno', function () {
-    $talisman = MazeCombate::talismanInicial();
-    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
+/** Fija un golpe entrante a mano sobre un combate (turno defensa, DECISIÓN 029). */
+function conEntrante(array $combate, string $elemento, int $peso): array
+{
     $combate['turno'] = 'defensa';
-    $combate['entrante'] = ['dano' => 7, 'elemento' => 'tierra', 'peso' => 2, 'critico' => false];
+    $combate['entrante'] = ['elemento' => $elemento, 'peso' => $peso];
 
-    $r = MazeCombate::resolver($combate, $talisman, 'comer', null);
+    return $combate;
+}
 
-    expect($r['talisman']['vida'])->toBe(33); // 40 − 7
+test('bloquear con el elemento que le gana y carga de sobra frena el golpe sin tocar la vida (029)', function () {
+    // Golpe tierra peso 4. Bloqueo con aire (aire le gana a tierra → ×0.5) → 2 ⚡.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'aire', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true]);
+    $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(8);  // 10 − 2
+    expect($r['talisman']['vida'])->toBe(40);              // vida intacta
     expect($r['combate']['turno'])->toBe('tuTurno');
     expect($r['combate']['entrante'])->toBeNull();
 });
 
-test('comer el golpe fatal termina en derrota', function () {
-    $talisman = MazeCombate::talismanInicial();
-    $talisman['vida'] = 5;
-    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
-    $combate['turno'] = 'defensa';
-    $combate['entrante'] = ['dano' => 9, 'elemento' => 'tierra', 'peso' => 2, 'critico' => false];
+test('bloquear sin carga para todo gasta la que hay y paga el déficit con vida ×3 (029)', function () {
+    // Golpe tierra peso 4, gema fuego (neutro → ×1 = 4 ⚡) con solo 1 de carga:
+    // paga 1 ⚡ y el déficit 3 va a vida × 3 = 9.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 1, 'fieldeada' => true]);
+    $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
 
-    $r = MazeCombate::resolver($combate, $talisman, 'comer', null);
+    $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(0);
+    expect($r['talisman']['vida'])->toBe(40 - 9);
+    expect($r['combate']['turno'])->toBe('tuTurno');
+});
+
+test('bloquear con una gema seca ya no es error: paga todo el golpe con vida (029)', function () {
+    // Golpe tierra peso 4, gema agua seca (agua pierde contra tierra → ×2 = 8 ⚡),
+    // 0 de carga → 8 × 3 = 24 de vida.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
+    $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(0);
+    expect($r['talisman']['vida'])->toBe(40 - 24);
+    expect($r['combate']['turno'])->toBe('tuTurno');
+});
+
+test('un bloqueo que no alcanza a pagarse con vida termina en derrota (029)', function () {
+    // Vida 5 contra un déficit de 24 → cae.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
+    $talisman['vida'] = 5;
+    $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
 
     expect($r['resultado'])->toBe('derrota');
     expect($r['combate'])->toBeNull();
     expect($r['talisman']['vida'])->toBe(0);
-});
-
-test('bloquear con una gema inerte es un error', function () {
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
-    $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
-    $combate['turno'] = 'defensa';
-    $combate['entrante'] = ['dano' => 7, 'elemento' => 'tierra', 'peso' => 2, 'critico' => false];
-
-    $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
-
-    expect($r['error'])->not->toBeNull();
 });
 
 test('los drops se pesan por la afinidad del monstruo (026): una colmena de fuego rinde sobre todo fuego y casi nunca agua', function () {

@@ -153,8 +153,6 @@
         /* Botón de subir nivel cuando ya alcanza la esencia: blanco con glow que late. */
         button.nivel-listo:not(:disabled) { color: #fff; border-color: var(--esencia); animation: pulso-nivel 1.7s ease-in-out infinite; }
         @keyframes pulso-nivel { 0%, 100% { box-shadow: 0 0 5px rgba(85, 176, 136, 0.35); } 50% { box-shadow: 0 0 12px rgba(85, 176, 136, 0.85); } }
-        .telegrafia { border: 1px dashed #7a6f44; background: #26230f; border-radius: 8px; padding: 9px 11px; font-size: 13px; margin: 10px 0; }
-        .entrante { border: 1px solid var(--vida); background: #2a1414; border-radius: 8px; padding: 11px; margin-top: 10px; }
         .drop { border: 1px solid #d8c24a; background: #29260f; border-radius: 8px; padding: 12px; margin-top: 12px; }
         .final { text-align: center; padding: 14px 0; } .final .titulo { font-size: 22px; font-weight: 700; }
         .final.victoria .titulo { color: var(--esencia); } .final.derrota .titulo { color: var(--vida); }
@@ -164,12 +162,27 @@
            (no se camina en combate) en vez de abrir un card que corre el layout. */
         .mapa-wrap { position: relative; align-self: flex-start; }
         .combate-flotante {
-            position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
-            width: min(88%, 340px); background: rgba(22, 14, 14, 0.93);
-            border: 1px solid var(--vida); border-radius: 10px; padding: 12px 14px;
-            box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: min(74%, 260px); background: rgba(22, 14, 14, 0.93);
+            border: 1px solid var(--vida); border-radius: 12px; padding: 16px 16px 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
         }
-        .combate-flotante h3 { margin: 0 0 8px; }
+        /* Maqueta de "modelo" del bicho: el marco donde mañana va una imagen. */
+        .modelo { text-align: center; }
+        .modelo-fig {
+            width: 72px; height: 72px; margin: 0 auto 10px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 34px; font-weight: 700; color: #fff;
+            border: 1px solid var(--linea); background: var(--caja2);
+        }
+        .modelo-fig.fuego { background: linear-gradient(160deg, rgba(var(--fuego-rgb), 0.5), var(--caja2)); }
+        .modelo-fig.agua { background: linear-gradient(160deg, rgba(var(--agua-rgb), 0.5), var(--caja2)); }
+        .modelo-fig.tierra { background: linear-gradient(160deg, rgba(var(--tierra-rgb), 0.5), var(--caja2)); }
+        .modelo-fig.aire { background: linear-gradient(160deg, rgba(var(--aire-rgb), 0.5), var(--caja2)); }
+        .modelo-nombre { font-weight: 700; font-size: 15px; }
+        .modelo-sub { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; color: var(--tenue); text-transform: capitalize; margin: 2px 0 10px; }
+        .modelo-stats { display: flex; justify-content: center; gap: 12px; font-size: 12px; color: var(--tenue); margin-top: 6px; }
+        .modelo-hint { margin-top: 10px; font-size: 12px; color: var(--vida); font-weight: 600; }
         .mini-btn.recarga { color: var(--esencia); }
         .mini-btn.recarga:disabled { color: var(--tenue); opacity: 0.5; }
         .inv-vacio { color: var(--tenue); font-size: 13px; font-style: italic; padding: 6px 2px; }
@@ -208,23 +221,25 @@
         <div class="mapa-wrap shrink-0">
             <canvas x-ref="canvas"></canvas>
 
+            <!-- Hoja de stats del bicho, centrada sobre el mapa (029): una maqueta
+                 de "modelo" lista para ponerle imagen. Solo nombre y valores; la
+                 defensa se resuelve tocando una gema del talismán, no acá. -->
             <div class="combate-flotante" x-show="combate" x-cloak>
-                <h3 x-text="combate ? combate.monstruo.nombre : ''"></h3>
                 <template x-if="combate">
-                    <div>
+                    <div class="modelo">
+                        <div class="modelo-fig" :class="combate.monstruo.elemento" x-text="combate.monstruo.nombre.charAt(0)"></div>
+                        <div class="modelo-nombre" x-text="combate.monstruo.nombre"></div>
+                        <div class="modelo-sub">
+                            <span class="punto" :class="combate.monstruo.elemento"></span>
+                            <span x-text="combate.monstruo.elemento"></span> · <span x-text="`N${combate.monstruo.nivel}`"></span>
+                        </div>
                         <div class="barra-cont"><div class="barra vida" :style="`width:${(combate.monstruo.vida / combate.monstruo.vidaMax) * 100}%`"></div></div>
-                        <div class="valor" x-text="`${combate.monstruo.vida} / ${combate.monstruo.vidaMax} — ${combate.monstruo.elemento}, def ${combate.monstruo.defensa}`"></div>
-
-                        <div class="telegrafia" x-show="combate.turno === 'tuTurno'">
-                            Anticipás su golpe: <b x-text="combate.monstruo.elemento"></b> nivel <span x-text="combate.monstruo.nivelAtaque"></span>, peso <span x-text="combate.monstruo.peso"></span>.
-                            Atacá con una gema, o guardá carga para bloquear.
+                        <div class="modelo-stats">
+                            <span x-text="`${combate.monstruo.vida}/${combate.monstruo.vidaMax} ♥`"></span>
+                            <span x-text="`def ${combate.monstruo.defensa}`"></span>
+                            <span x-text="`peso ${combate.monstruo.peso}`"></span>
                         </div>
-
-                        <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
-                            <div style="font-weight:600;margin-bottom:6px" x-text="`Golpe entrante: ${combate.entrante ? combate.entrante.dano : ''} (${combate.entrante ? combate.entrante.elemento : ''})${combate.entrante && combate.entrante.critico ? ' ¡CRÍTICO!' : ''}`"></div>
-                            <div class="valor" style="margin-bottom:8px">Bloqueá con una gema (barato con el elemento que le gana) o comé el golpe.</div>
-                            <button class="ataque" @click="comer()" :class="{ enviando: accionActiva === 'comer-' }" :disabled="cargando" x-text="`comer — ${combate.entrante ? combate.entrante.dano : ''} ♥`"></button>
-                        </div>
+                        <div class="modelo-hint" x-show="combate.turno === 'defensa'">arremete — bloqueá con una gema</div>
                     </div>
                 </template>
             </div>
@@ -291,10 +306,10 @@
                         :draggable="!combate"
                         @dragstart="iniciarArrastre(g.id)" @dragend="terminarArrastre()"
                         @dragover.prevent @drop.prevent="reordenarManual(arrastrando, g.id); terminarArrastre()"
-                        @click="!cargando && combate && combate.turno === 'tuTurno' && atacar(g.id); !cargando && combate && combate.turno === 'defensa' && g.carga > 0 && bloquear(g.id)"
+                        @click="!cargando && combate && combate.turno === 'tuTurno' && atacar(g.id); !cargando && combate && combate.turno === 'defensa' && bloquear(g.id)"
                         :class="[g.elemento, g.carga === 0 ? 'inerte' : '', arrastrando === g.id ? 'arrastrando' : '',
                             combate && combate.turno === 'tuTurno' ? `accionable ${matchupAtaque(g)}` : '',
-                            combate && combate.turno === 'defensa' ? `accionable ${matchupBloqueo(g)} ${g.carga === 0 ? 'inactivo' : ''}` : '',
+                            combate && combate.turno === 'defensa' ? `accionable ${matchupBloqueo(g)}` : '',
                             (accionActiva === `atacar-${g.id}` || accionActiva === `bloquear-${g.id}`) ? 'enviando' : '']">
                         <div class="cab">
                             <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
@@ -308,7 +323,7 @@
                         </div>
                         <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="accion-info" x-show="combate && combate.turno === 'tuTurno'" x-text="`~${danioEstimado(g)} dmg · ${costoAtaqueLabel(g)}`"></div>
-                        <div class="accion-info" x-show="combate && combate.turno === 'defensa'" x-text="g.carga > 0 ? `Bloquear · ${costoBloqueoEstimado(g)} ⚡` : 'sin carga para bloquear'"></div>
+                        <div class="accion-info" x-show="combate && combate.turno === 'defensa'" x-text="`Bloquear · ${costoBloqueoLabel(g)}`"></div>
                     </div>
                 </template>
             </div>
