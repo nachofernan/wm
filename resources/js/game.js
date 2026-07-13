@@ -9,10 +9,10 @@ const CELDA = 24; // px por celda en el canvas
 // elemento, alpha = probabilidad). Las celdas de solo ambiente (sin elemento)
 // no se tiñen — el peligro parejo no se pinta, se sospecha.
 const COLOR_ELEMENTO = {
-    fuego: '220, 60, 40',
+    fuego: '235, 60, 10', // rojo-naranja bien saturado: el naranja anterior se confundía con tierra
     agua: '40, 120, 220',
-    tierra: '150, 110, 60',
-    aire: '200, 200, 230',
+    tierra: '140, 105, 75', // desaturado, para que no compita con el fuego
+    aire: '70, 170, 70', // verde: el gris-lavanda anterior no se notaba sobre el fondo claro del canvas
 };
 
 const COLOR_MARCA = {
@@ -533,9 +533,9 @@ export function game() {
         // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
         conteoInv(elem) { return this.inventario().filter((g) => g.elemento === elem).length; },
 
-        // Golpes que aún banca una gema: cada ataque cuesta su nivel en carga.
-        // Es lo que de verdad importa mirar (no la barra): cuántos casteos quedan.
-        golpesRestantes(g) { return Math.floor(g.carga / (g.nivel || 1)); },
+        // Tope de carga de una gema: nivel × 6 (026). Mismo número que alimenta
+        // la barra de abajo — se muestra también como texto (carga/tope).
+        cargaMax(g) { return g.nivel * 6; },
 
         // Llenado de la barra de carga: carga relativa al tope de la gema
         // (nivel × 6, 026). Referencial — cuánto le queda de su máximo.
@@ -545,9 +545,9 @@ export function game() {
         // el faltante se paga con vida a la penalidad de la 021. Espejo de MazeCombate.
         costoAtaqueLabel(g) {
             const costo = g.nivel; // atacar cuesta carga = nivel
-            if (g.carga >= costo) return `−${costo} ⚡`;
+            if (g.carga >= costo) return `${costo} ⚡`;
             const vida = (costo - g.carga) * COMBATE.vidaPorEsencia;
-            return g.carga > 0 ? `−${g.carga} ⚡ +${vida} vida` : `−${vida} vida`;
+            return g.carga > 0 ? `${g.carga} ⚡ +${vida} vida` : `${vida} vida`;
         },
 
         // Cuánta vida repone curar ahora: esencia pura → vida 1:1, sin pasarse del
