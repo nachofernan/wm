@@ -477,14 +477,16 @@ export function game() {
 
         // ── Preview de combate (solo display; la resolución la hace el servidor) ──
         // Daño estimado de atacar con la gema g al monstruo actual: tirada media,
-        // sin crítico. Espejo de CombatResolver::dano con variacion = 1.
+        // sin crítico. Espejo de CombatResolver::dano con variacion = 1, incluido
+        // el acople gema→ataque de la hoja (ataqueMult, 024).
         danioEstimado(g) {
             if (!this.combate) return 0;
             const m = this.combate.monstruo;
             const poder = g.nivel * COMBATE.F;
             const mitig = COMBATE.K / (COMBATE.K + m.defensa);
             const mult = COMBATE[matchup(g.elemento, m.elemento)];
-            return Math.max(1, Math.round(poder * mitig * mult));
+            const bono = 1 + (this.talisman ? this.talisman.ataqueMult : 0);
+            return Math.max(1, Math.round(poder * mitig * mult * bono));
         },
 
         // Costo en esencia de bloquear el golpe entrante con la gema g. Espejo de

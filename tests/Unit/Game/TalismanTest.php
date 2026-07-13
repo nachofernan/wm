@@ -52,15 +52,16 @@ test('una gema fieldeada no se desguaza', function () {
     expect($r['error'])->toBe('gema inválida');
 });
 
-test('el talismán inicial arranca en nivel 1 con cap y defensa base', function () {
+test('el talismán inicial deriva cap, defensa y ataque de nivel + gemas fieldeadas', function () {
     $t = MazeCombate::talismanInicial();
 
     expect($t['nivel'])->toBe(1);
-    expect($t['cap'])->toBe(12);     // CAP_BASE
-    expect($t['defensa'])->toBe(8);  // DEF_BASE
+    expect($t['cap'])->toBe(12);          // CAP_BASE
+    expect($t['defensa'])->toBe(8 + 9);   // base 8 + agua n3 fieldeada (3 × 3)
+    expect($t['ataqueMult'])->toBe(0.15); // fuego n3 fieldeada (3 × 0.05)
 });
 
-test('subir nivel cuesta esencia y sube cap y defensa', function () {
+test('subir nivel cuesta esencia y sube cap y defensa base', function () {
     $t = MazeCombate::talismanInicial();
     $t['esencia'] = 12;
 
@@ -68,9 +69,43 @@ test('subir nivel cuesta esencia y sube cap y defensa', function () {
 
     expect($r['error'])->toBeNull();
     expect($r['talisman']['nivel'])->toBe(2);
-    expect($r['talisman']['cap'])->toBe(22);     // 12 + 10
-    expect($r['talisman']['defensa'])->toBe(12); // 8 + 4
-    expect($r['talisman']['esencia'])->toBe(2);  // 12 − (1 × 10)
+    expect($r['talisman']['cap'])->toBe(22);          // 12 + 10
+    expect($r['talisman']['defensa'])->toBe(12 + 9);  // base nivel 2 (12) + agua n3 fieldeada
+    expect($r['talisman']['esencia'])->toBe(2);       // 12 − (1 × 10)
+});
+
+test('el acople gema→stat: fieldear agua sube defensa, guardar fuego baja ataque', function () {
+    // Arranco de un talismán limpio nivel 1 sin gemas, y armo el loadout a mano.
+    $t = Talisman::recomputar([
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 3,
+        'bichosCaidos' => 0, 'gemasJuntadas' => 0,
+        'gemas' => [
+            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 10, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 10, 'fieldeada' => true],
+        ],
+    ]);
+    expect($t['defensa'])->toBe(8);        // base, ninguna agua fieldeada
+    expect($t['ataqueMult'])->toBe(0.25);  // fuego n5 fieldeada
+
+    // Fieldeo la agua n4 (entra: 5 + 4 = 9 ≤ 12) → +12 de defensa.
+    $t = Talisman::aplicar($t, 'fieldear', 1)['talisman'];
+    expect($t['defensa'])->toBe(8 + 12);
+
+    // Guardo la fuego n5 → el ataque se cae a 0.
+    $t = Talisman::aplicar($t, 'guardar', 2)['talisman'];
+    expect($t['ataqueMult'])->toBe(0.0);
+});
+
+test('una gema inerte (esencia 0) no potencia la hoja', function () {
+    $t = Talisman::recomputar([
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 2,
+        'bichosCaidos' => 0, 'gemasJuntadas' => 0,
+        'gemas' => [
+            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 0, 'fieldeada' => true],
+        ],
+    ]);
+
+    expect($t['defensa'])->toBe(8); // agua fieldeada pero seca: no suma
 });
 
 test('subir nivel sin esencia suficiente es rechazado', function () {

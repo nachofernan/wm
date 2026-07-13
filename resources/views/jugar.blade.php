@@ -130,6 +130,7 @@
                     <div class="stat">vida<b x-text="`${talisman.vida}/${talisman.vidaMax}`"></b></div>
                     <div class="stat">poder<b x-text="`${poderActual()}/${capEnUso()}`"></b></div>
                     <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
+                    <div class="stat">ataque<b x-text="`+${Math.round(talisman.ataqueMult * 100)}%`"></b></div>
                     <div class="stat">defensa<b x-text="talisman.defensa"></b></div>
                     <div class="stat">esencia<b x-text="talisman.esencia"></b></div>
                     <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>

@@ -31,6 +31,13 @@ test('daño por ratio con revés elemental', function () {
     expect(resolver()->dano(5, 'fuego', 30, 'agua', 1.0))->toBe(5);
 });
 
+test('el bonus de ataque de la hoja escala el daño (acople gema→ataque, 024)', function () {
+    // Base: poder 15, mitigacion 0.625, ventaja 1.5, var 1.0 → 14.0625 → 14.
+    expect(resolver()->dano(5, 'fuego', 30, 'aire', 1.0, 0.0))->toBe(14);
+    // Con +25% de ataque: 14.0625 × 1.25 = 17.578 → 18.
+    expect(resolver()->dano(5, 'fuego', 30, 'aire', 1.0, 0.25))->toBe(18);
+});
+
 test('el daño nunca baja de 1: el alfeñique siempre araña', function () {
     // poder 3, mitigacion 50/250=0.2, revés 0.5, var 0.85 → 0.255 → round 0 → piso 1
     expect(resolver()->dano(1, 'fuego', 200, 'agua', 0.85))->toBe(1);

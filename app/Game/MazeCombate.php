@@ -121,7 +121,7 @@ final class MazeCombate
                 return $error('gema inválida');
             }
 
-            $r = self::golpe($combate, $g['nivel'], $g['elemento'], $combate['monstruo']['defensa'], $combate['monstruo']['elemento']);
+            $r = self::golpe($combate, $g['nivel'], $g['elemento'], $combate['monstruo']['defensa'], $combate['monstruo']['elemento'], $talisman['ataqueMult'] ?? 0);
 
             if ($g['esencia'] >= $r['costoEsencia']) {
                 self::gastarGema($talisman, $gemaId, $r['costoEsencia']);
@@ -195,12 +195,16 @@ final class MazeCombate
         return $error('acción desconocida');
     }
 
-    /** Un golpe del mago contra el monstruo (consume un paso de la semilla de combate). */
-    private static function golpe(array &$combate, int $nivel, string $elemAtacante, int $defensa, string $elemDefensor): array
+    /**
+     * Un golpe contra un objetivo (consume un paso de la semilla de combate).
+     * `$bonusAtaque` es el acople gema→ataque de la hoja del atacante (024): lo
+     * pasa el mago (su ataqueMult), el monstruo golpea con el default 0.
+     */
+    private static function golpe(array &$combate, int $nivel, string $elemAtacante, int $defensa, string $elemDefensor, float $bonusAtaque = 0.0): array
     {
         $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
 
-        return (new CombatResolver($prng))->golpe($nivel, $elemAtacante, $defensa, $elemDefensor);
+        return (new CombatResolver($prng))->golpe($nivel, $elemAtacante, $defensa, $elemDefensor, $bonusAtaque);
     }
 
     /** El monstruo devuelve el golpe: fija el entrante y pasa a defensa. */

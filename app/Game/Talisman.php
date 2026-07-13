@@ -32,6 +32,14 @@ final class Talisman
     public const COSTO_NIVEL = 10;   // esencia para subir de nivel N a N+1 = N × esto
 
     /**
+     * Acople gema→stat (modelo A, 024): las gemas fieldeadas con esencia aportan
+     * a la hoja según su elemento. Números de arranque (tuning).
+     */
+    public const ATK_POR_NIVEL = 0.05;   // fuego: +5% de ataque por nivel de gema fieldeada
+
+    public const DEF_POR_NIVEL_GEMA = 3; // agua: +3 de defensa por nivel de gema fieldeada
+
+    /**
      * Aplica una acción y devuelve el talismán nuevo, o un error si la acción
      * no es legal (no toca nada en ese caso).
      *
@@ -71,17 +79,34 @@ final class Talisman
     }
 
     /**
-     * Recalcula los stats derivados de la hoja (cap, defensa) desde el nivel del
-     * talismán —y, desde el paso 2 del 024, desde el acople de las gemas
-     * fieldeadas—. Se llama tras cada mutación exitosa (ver ok()): cap y defensa
-     * son proyección cacheada en el blob, no fuente de verdad. El `?? 1` tolera
-     * blobs viejos sin nivel (dev, runs desechables).
+     * Recalcula los stats derivados de la hoja desde el nivel del talismán y el
+     * acople de las gemas fieldeadas con esencia (modelo A, 024): fuego→ataque
+     * (multiplicador `ataqueMult`), agua→defensa (sumando al ratio, sobre la
+     * defensa base del nivel). aire→visión y tierra→memoria entran cuando esos
+     * stats existan (paso 3). Se llama tras cada mutación exitosa (ver ok()):
+     * cap, defensa y ataqueMult son proyección cacheada en el blob, no fuente de
+     * verdad. El `?? 1` tolera blobs viejos sin nivel (dev, runs desechables).
      */
     public static function recomputar(array $talisman): array
     {
         $nivel = $talisman['nivel'] ?? 1;
+
+        $ataqueGema = 0.0;
+        $defensaGema = 0;
+        foreach ($talisman['gemas'] as $g) {
+            if (! $g['fieldeada'] || $g['esencia'] <= 0) {
+                continue; // una gema inerte no potencia la hoja (012)
+            }
+            if ($g['elemento'] === 'fuego') {
+                $ataqueGema += $g['nivel'] * self::ATK_POR_NIVEL;
+            } elseif ($g['elemento'] === 'agua') {
+                $defensaGema += $g['nivel'] * self::DEF_POR_NIVEL_GEMA;
+            }
+        }
+
         $talisman['cap'] = self::capDeNivel($nivel);
-        $talisman['defensa'] = self::defensaDeNivel($nivel);
+        $talisman['defensa'] = self::defensaDeNivel($nivel) + $defensaGema;
+        $talisman['ataqueMult'] = round($ataqueGema, 4);
 
         return $talisman;
     }

@@ -84,12 +84,16 @@ final class CombatResolver
      * crítico, en ese orden). El costo en esencia es el nivel de la gema
      * (DECISIONES.md 012): nivel alto = golpe caro.
      *
+     * `$bonusAtaque` es el acople gema→ataque de la hoja (fuego, 024): un
+     * multiplicador `(1 + bonus)` sobre el daño. Solo lo pasa el mago; los
+     * monstruos atacan sin bono (default 0), así que su resolución no cambia.
+     *
      * @return array{
      *     poder:int, mitigacion:float, matchup:string, mult:float,
      *     banda:float, critico:bool, variacion:float, dano:int, costoEsencia:int
      * }
      */
-    public function golpe(int $nivel, string $elementoAtacante, int $defensa, string $elementoDefensor): array
+    public function golpe(int $nivel, string $elementoAtacante, int $defensa, string $elementoDefensor, float $bonusAtaque = 0.0): array
     {
         $banda = $this->reglas['bandaMin']
             + ($this->prng->next() / 0xFFFFFFFF) * ($this->reglas['bandaMax'] - $this->reglas['bandaMin']);
@@ -106,7 +110,7 @@ final class CombatResolver
             'banda' => $banda,
             'critico' => $critico,
             'variacion' => $variacion,
-            'dano' => $this->dano($nivel, $elementoAtacante, $defensa, $elementoDefensor, $variacion),
+            'dano' => $this->dano($nivel, $elementoAtacante, $defensa, $elementoDefensor, $variacion, $bonusAtaque),
             'costoEsencia' => $nivel,
         ];
     }
@@ -114,13 +118,15 @@ final class CombatResolver
     /**
      * Daño determinista dado un factor de variación explícito. Es el núcleo
      * testeable de golpe(): daño = max(1, round(poder × mitigación × mult ×
-     * variación)). Ratio, nunca cero: el alfeñique siempre araña.
+     * variación × (1 + bonusAtaque))). Ratio, nunca cero: el alfeñique siempre
+     * araña. `$bonusAtaque` es el acople gema→ataque de la hoja (fuego, 024);
+     * default 0 = sin bono (monstruos, y todo el que no lo pase).
      */
-    public function dano(int $nivel, string $elementoAtacante, int $defensa, string $elementoDefensor, float $variacion): int
+    public function dano(int $nivel, string $elementoAtacante, int $defensa, string $elementoDefensor, float $variacion, float $bonusAtaque = 0.0): int
     {
         $poder = $nivel * (int) $this->reglas['F'];
         $mult = $this->multAtaque(self::matchup($elementoAtacante, $elementoDefensor));
-        $bruto = $poder * $this->mitigacion($defensa) * $mult * $variacion;
+        $bruto = $poder * $this->mitigacion($defensa) * $mult * $variacion * (1 + $bonusAtaque);
 
         return max(1, (int) round($bruto));
     }
