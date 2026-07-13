@@ -98,8 +98,11 @@ class JugarController extends Controller
         $encuentro = ['x' => $datos['x'], 'y' => $datos['y'], 'elem' => $celda['elem'], 'prob' => $celda['prob']];
         $run->events()->create(['tipo' => 'encuentro', 'payload' => $encuentro]);
         // El monstruo y su semilla se derivan en el servidor (axioma 4). El índice
-        // (pasos) varía el bicho si volvés a cruzar la misma celda.
-        $combate = MazeCombate::iniciar($run->seed, $datos['x'], $datos['y'], $celda['elem'], $celda['prob'], $datos['pasos']);
+        // (pasos) varía el bicho si volvés a cruzar la misma celda. `t` es la
+        // distancia normalizada a la entrada: escala dificultad y loot (027).
+        $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
+        $t = MapaBuilder::dificultadCelda($matriz, $datos['x'], $datos['y']);
+        $combate = MazeCombate::iniciar($run->seed, $datos['x'], $datos['y'], $celda['elem'], $celda['prob'], $datos['pasos'], $t);
         $run->update(['combate' => $combate]);
 
         return response()->json(['ok' => true, 'estado' => $this->estado($run)]);

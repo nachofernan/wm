@@ -21,6 +21,64 @@ test('iniciar deriva un monstruo del elemento del encuentro, con vida escalada p
     expect($c['resultado'])->toBeNull();
 });
 
+test('la distancia a la entrada escala el bicho ~×2 conservando su arquetipo (027)', function () {
+    $entrada = MazeCombate::iniciar(42, 23, 4, 'agua', 11, 0, 0.0);
+    $salida = MazeCombate::iniciar(42, 23, 4, 'agua', 11, 0, 1.0);
+
+    // Mismo elemento/forma; la salida pega ~el doble en vida, defensa y ataque.
+    expect($entrada['monstruo']['elemento'])->toBe($salida['monstruo']['elemento']);
+    expect($entrada['monstruo']['vida'])->toBe(60 + 11);      // factor 1
+    expect($salida['monstruo']['vida'])->toBe((60 + 11) * 2); // factor 2
+    expect($salida['monstruo']['defensa'])->toBe($entrada['monstruo']['defensa'] * 2);
+    expect($salida['monstruo']['nivelAtaque'])->toBe($entrada['monstruo']['nivelAtaque'] * 2);
+    expect($salida['t'])->toBe(1.0);
+});
+
+test('el loot se desliza con la distancia: bajo en la entrada, alto en la salida, N7 raro (027)', function () {
+    // Mato bichos sobre 200 seeds fijos cerca de la entrada (t=0) y en el fondo
+    // (t=1) y comparo los niveles dropeados. La ventana no se solapa por diseño:
+    // entrada N1..N4, salida N4..N7. Números de arranque, pero el sesgo es firme.
+    $recolectar = function (float $t): array {
+        $niveles = [];
+        for ($seed = 0; $seed < 200; $seed++) {
+            // Gema y vida sobradas: mato a golpes hasta la victoria sin depender
+            // de un one-shot (a t=1 el bicho tiene ~el doble de vida).
+            $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'carga' => 999999, 'fieldeada' => true]);
+            $talisman['vida'] = 999999;
+            $combate = MazeCombate::iniciar($seed, 0, 0, 'aire', 0, 0, $t);
+
+            $r = ['combate' => $combate, 'talisman' => $talisman, 'resultado' => null];
+            while ($r['resultado'] === null) {
+                $accion = $r['combate']['turno'] === 'tuTurno' ? 'atacar' : 'comer';
+                $r = MazeCombate::resolver($r['combate'], $r['talisman'], $accion, 99);
+            }
+
+            expect($r['resultado'])->toBe('victoria');
+            foreach ($r['drop'] as $d) {
+                $niveles[] = $d['nivel'];
+            }
+        }
+
+        return $niveles;
+    };
+
+    $entrada = $recolectar(0.0);
+    $salida = $recolectar(1.0);
+
+    expect(min($entrada))->toBeGreaterThanOrEqual(1);
+    expect(max($entrada))->toBeLessThanOrEqual(4); // en la entrada nunca N5+
+    expect(min($salida))->toBeGreaterThanOrEqual(4); // en el fondo nunca N3-
+    expect(max($salida))->toBe(7);
+
+    // El promedio del fondo es netamente mayor que el de la entrada.
+    expect(array_sum($salida) / count($salida))->toBeGreaterThan(array_sum($entrada) / count($entrada) + 1.5);
+
+    // N7 es la cola rara aun en el fondo del maze (≤15% buscado, margen a 20%).
+    $septimos = count(array_filter($salida, fn ($n) => $n === 7));
+    expect($septimos / count($salida))->toBeLessThan(0.20);
+    expect($septimos)->toBeGreaterThan(0); // pero pasa
+});
+
 test('iniciar con encuentro de ambiente (sin elemento) sortea uno determinista', function () {
     $a = MazeCombate::iniciar(7, 5, 5, null, 1, 0);
     $b = MazeCombate::iniciar(7, 5, 5, null, 1, 0);

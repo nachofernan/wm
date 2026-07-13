@@ -56,6 +56,32 @@ final class MapaBuilder
         ];
     }
 
+    /**
+     * Dificultad de una celda como su distancia normalizada a la entrada:
+     * 0.0 en la entrada, 1.0 en la celda más lejana (la salida). Es el eje
+     * único que escala monstruos y loot dentro de un mismo maze (DECISIÓN 027):
+     * cerca de la entrada, bichos flojos y piedras bajas; cerca de la salida,
+     * ~el doble de dificultad y de nivel de drop. Una sola BFS desde la entrada.
+     *
+     * Determinista y paritario por construcción (sale del laberinto, que es
+     * función pura del seed), pero se consume solo en el servidor: el combate
+     * es autoridad del servidor (axioma 4), no hace falta espejo en JS.
+     *
+     * @param  list<list<array{N:int,E:int,S:int,O:int}>>  $matriz
+     */
+    public static function dificultadCelda(array $matriz, int $x, int $y): float
+    {
+        $distancias = self::distancias($matriz, 0, 0);
+        $total = self::celdaMasLejana($distancias)['distancia'];
+        $d = $distancias[$y][$x];
+
+        if ($total <= 0 || $d < 0) {
+            return 0.0;
+        }
+
+        return $d / $total;
+    }
+
     /** @param array{salida: array{distancia:int}, puertas: list<mixed|null>, llaves: list<array{m:int}|null>} $marcas */
     public static function esValido(array $marcas): bool
     {

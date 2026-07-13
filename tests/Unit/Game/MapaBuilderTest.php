@@ -42,6 +42,19 @@ test('produce las marcas esperadas para un seed fijo en un mapa de 30x30', funct
     expect(MapaBuilder::marcas($matriz))->toBe($marcasEsperadas);
 })->with('seeds_marcas');
 
+test('dificultadCelda es 0 en la entrada y 1 en la salida (027)', function () {
+    // seed 42: salida en (14,25) a distancia 523 (dataset seeds_marcas).
+    $matriz = MazeGenerator::generar(42, 30, 30);
+
+    expect(MapaBuilder::dificultadCelda($matriz, 0, 0))->toBe(0.0);
+    expect(MapaBuilder::dificultadCelda($matriz, 14, 25))->toBe(1.0);
+
+    // Una celda intermedia cae estrictamente entre 0 y 1.
+    $t = MapaBuilder::dificultadCelda($matriz, 5, 17); // puerta 2 del dataset
+    expect($t)->toBeGreaterThan(0.0);
+    expect($t)->toBeLessThan(1.0);
+});
+
 test('esValido rechaza un mapa cuyo camino no llega a CAMINO_MINIMO', function () {
     $matriz = MazeGenerator::generar(1, 10, 10);
 

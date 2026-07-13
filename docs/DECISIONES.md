@@ -678,25 +678,28 @@ evita acoplar fusión con progresión); pesos que sumaran 90 (se subió el mismo
 100); renombrar los internos del `CombatResolver`; exponer `VENCE_A` en vez de reusar `matchup`.
 
 ## 027 — Dificultad y loot por distancia a la entrada; fusión con costo de esencia — 2026-07-13
-**Decisión:** Cierra la charla sobre escalar dificultad y botín dentro de un mismo maze. Cuatro puntos;
-dos son diseño registrado con implementación pendiente, dos se implementan en esta etapa.
+**Decisión:** Cierra la charla sobre escalar dificultad y botín dentro de un mismo maze. Cuatro puntos; los
+cuatro implementados (los dos primeros en una etapa Senior posterior a la misma fecha).
 
 - **La dificultad escala con la distancia a la entrada, como rampa suave (~2x entrada→salida)
-  [PENDIENTE].** `t = dInicio / salida.distancia` ∈ [0,1]. El **arquetipo por elemento es el ESTILO**
-  (fuego glass cannon, tierra tanque) y la **distancia es el TIER** (los stats del monstruo escalan ×(1+t)
-  aprox). El arquetipo **conserva su offset** de dificultad (tierra más duro que aire al mismo tier). Esto
-  reemplaza el `vida = base + prob` como único escalado intra-maze ([MazeCombate.php:74]); el calor de
-  colmena (`prob`) queda como **bump local sobre el tier**, no como el eje principal. No contradice la 011:
-  los **saltos** gruesos de dificultad viven ENTRE mazes (secuencia), esto es la **rampa continua DENTRO**
-  de un maze — dos ejes que componen. El dato de distancia ya existe paritario en `MapaBuilder::distancias` /
-  `mapaBuilder.js`; falta pasarlo a `MazeCombate::iniciar`. Números de arranque, se ajustan jugando.
+  [IMPLEMENTADO].** `t = dInicio / salida.distancia` ∈ [0,1]. El **arquetipo por elemento es el ESTILO**
+  (fuego glass cannon, tierra tanque) y la **distancia es el TIER**: los stats del monstruo (vida, defensa,
+  nivelAtaque) escalan por `1 + t` — ~1× en la entrada, ~2× en la salida ([MazeCombate::iniciar]). El arquetipo
+  **conserva su offset** de dificultad (tierra más duro que aire al mismo tier, porque el factor multiplica su
+  base). El calor de colmena (`prob`) queda como **bump local** que suma vida antes del factor, no como el eje
+  principal. No contradice la 011: los **saltos** gruesos de dificultad viven ENTRE mazes (secuencia), esto es
+  la **rampa continua DENTRO** de un maze — dos ejes que componen. El dato de distancia ya existía paritario en
+  `MapaBuilder::distancias`; se expuso como `MapaBuilder::dificultadCelda($matriz,$x,$y)` (una BFS desde la
+  entrada) y lo pasa `JugarController::encuentro` a `iniciar`, que lo guarda en el blob del combate para el
+  drop. Se consume solo en el servidor (axioma 4): no necesita espejo en JS. Números de arranque.
 
-- **El nivel del loot desliza con la distancia [PENDIENTE].** Reemplaza `nivel = dificultad + randBelow(3)`
-  (drop por arquetipo, [MazeCombate.php:282]) por un drop centrado que corre con `t`: entrada N2/N3, mitad
-  N4/N5, salida **pico N5/N6 y N7 como cola rara (≤15%)**. El campo `dificultad` del arquetipo se queda para
-  stats del monstruo y el multi-drop (019), deja de fijar el nivel del drop. Los drops grandes del fondo
-  **superan el cap** del talismán (024) y alimentan la meta-progresión (desguace→esencia→nivel), no el loadout
-  inmediato — coherente con DISENO §3. Números de arranque.
+- **El nivel del loot desliza con la distancia [IMPLEMENTADO].** Reemplazó `nivel = dificultad + randBelow(3)`
+  (drop por arquetipo) por `MazeCombate::nivelDrop($prng,$t)`: una distribución "tienda de campaña" sobre los
+  niveles 1..7 cuyo centro corre de 2.5 (entrada → N2/N3) a 5.5 (salida → pico N5/N6), pendiente 14 → N7 ~14%
+  en el fondo (cola rara ≤15%). El campo `dificultad` del arquetipo se queda para el multi-drop (019), deja de
+  fijar el nivel del drop. Los drops grandes del fondo **superan el cap** del talismán (024) y alimentan la
+  meta-progresión (desguace→esencia→nivel), no el loadout inmediato — coherente con DISENO §3. Números de
+  arranque.
 
 - **Fusionar cuesta 1 de esencia pura [IMPLEMENTADO].** Además del costo de oportunidad que ya tenía (dos n3
   desguazadas rinden 6 de esencia; fusionadas a n4 rinden 4 → se pierden 2), fusionar ahora **descuenta 1 de

@@ -58,31 +58,39 @@ final class MazeCombate
 
     /**
      * Arranca un combate en la celda (x,y). El elemento del monstruo sale del
-     * encuentro (o, para un encuentro de ambiente sin elemento, se sortea). La
-     * vida escala con la probabilidad de la celda: una colmena más caliente
-     * suelta bichos más duros.
+     * encuentro (o, para un encuentro de ambiente sin elemento, se sortea). El
+     * arquetipo (por elemento) es la FORMA del bicho; la distancia a la entrada
+     * `$t` (0.0..1.0, DECISIÓN 027) es su TIER: escala vida/defensa/ataque por
+     * `1 + t` — ~1× en la entrada, ~2× en la salida — sin cambiar qué clase de
+     * pelea da. La prob de la celda suma un plus de vida (colmena caliente =
+     * bicho más duro). `t` se guarda en el blob porque el drop lo necesita en
+     * la victoria (loot deslizante, DECISIÓN 027 punto 2).
      *
-     * @return array combate: {x,y,monstruo,turno,entrante,semilla,paso,resultado}
+     * @param  float  $t  Distancia normalizada a la entrada (MapaBuilder::dificultadCelda).
+     * @return array combate: {x,y,t,monstruo,turno,entrante,semilla,paso,resultado}
      */
-    public static function iniciar(int $seed, int $x, int $y, ?string $elem, int $prob, int $indice): array
+    public static function iniciar(int $seed, int $x, int $y, ?string $elem, int $prob, int $indice, float $t = 0.0): array
     {
         $semilla = ($seed ^ ($x * 73856093) ^ ($y * 19349663) ^ ($indice * 83492791)) & 0xFFFFFFFF;
         $prng = new Prng($semilla);
 
         $elem ??= EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
         $base = self::ARQUETIPOS[$elem];
-        $vida = $base['vida'] + $prob; // colmena caliente = bicho más duro (arranque)
+
+        $factor = 1 + $t; // 1× en la entrada, ~2× en la salida (027). Números de arranque.
+        $vida = (int) round(($base['vida'] + $prob) * $factor);
 
         return [
             'x' => $x,
             'y' => $y,
+            't' => $t,
             'monstruo' => [
                 'nombre' => $base['nombre'],
                 'elemento' => $elem,
                 'vida' => $vida,
                 'vidaMax' => $vida,
-                'defensa' => $base['defensa'],
-                'nivelAtaque' => $base['nivelAtaque'],
+                'defensa' => (int) round($base['defensa'] * $factor),
+                'nivelAtaque' => max(1, (int) round($base['nivelAtaque'] * $factor)),
                 'peso' => $base['peso'],
                 'dificultad' => $base['dificultad'],
             ],
@@ -228,12 +236,13 @@ final class MazeCombate
     private static function victoria(array $combate, array $talisman, array $log): array
     {
         $dificultad = $combate['monstruo']['dificultad'];
+        $t = $combate['t'] ?? 0.0;
         $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
         $cantidad = 1 + ($prng->randBelow(4) < $dificultad ? 1 : 0);
 
         $drops = [];
         for ($i = 0; $i < $cantidad; $i++) {
-            $gema = self::drop($prng, $dificultad, $talisman['proximoId'], $combate['monstruo']['elemento']);
+            $gema = self::drop($prng, $t, $talisman['proximoId'], $combate['monstruo']['elemento']);
             $talisman['gemas'][] = $gema;
             $talisman['proximoId']++;
             $talisman['gemasJuntadas']++;
@@ -272,16 +281,49 @@ final class MazeCombate
 
     /**
      * Gema del botín: elemento pesado por la afinidad del monstruo (026), nivel
-     * escalado por su dificultad. La carga nace llena (nivel × 6) para que el
-     * neto por pelea sea positivo (si no, es espiral de muerte). Números de
-     * arranque.
+     * deslizado por la distancia a la entrada (DECISIÓN 027 punto 2). La carga
+     * nace llena (nivel × 6) para que el neto por pelea sea positivo (si no, es
+     * espiral de muerte). Números de arranque.
      */
-    private static function drop(Prng $prng, int $dificultad, int $id, string $elemMonstruo): array
+    private static function drop(Prng $prng, float $t, int $id, string $elemMonstruo): array
     {
         $elemento = self::elementoDrop($prng, $elemMonstruo);
-        $nivel = $dificultad + $prng->randBelow(3); // dificultad .. +2
+        $nivel = self::nivelDrop($prng, $t);
 
         return ['id' => $id, 'elemento' => $elemento, 'nivel' => $nivel, 'carga' => $nivel * Talisman::CARGA_POR_NIVEL, 'fieldeada' => false];
+    }
+
+    /**
+     * Nivel de una piedra dropeada según la distancia a la entrada `$t`
+     * (0.0..1.0, DECISIÓN 027 punto 2). Distribución "tienda de campaña" sobre
+     * los niveles 1..7, con el centro corriendo de 2.5 (entrada → N2/N3) a 5.5
+     * (salida → pico N5/N6). La pendiente 14 deja un N7 de ~14% en el fondo del
+     * maze (≤15% buscado) y colas suaves en el resto. Recorre 1..7 en orden fijo
+     * y camina una tirada sobre el acumulado — determinista, replayable. Números
+     * de arranque (tuning, se ajustan jugando).
+     */
+    private static function nivelDrop(Prng $prng, float $t): int
+    {
+        $centro = 2.5 + 3.0 * $t;
+
+        $pesos = [];
+        $suma = 0;
+        for ($n = 1; $n <= 7; $n++) {
+            $peso = (int) max(0, round(30 - 14 * abs($n - $centro)));
+            $pesos[$n] = $peso;
+            $suma += $peso;
+        }
+
+        $tirada = $prng->randBelow($suma);
+        $acum = 0;
+        for ($n = 1; $n <= 7; $n++) {
+            $acum += $pesos[$n];
+            if ($tirada < $acum) {
+                return $n;
+            }
+        }
+
+        return 7; // inalcanzable: la tirada < suma siempre resuelve antes
     }
 
     /**
