@@ -21,6 +21,14 @@ final class Talisman
     public const RANURAS = 6;
 
     /**
+     * Carga máxima de una gema por nivel (026): una gema de nivel N tope a N×6 de
+     * carga. La carga es el combustible interno de la gema (⚡, se gasta al lanzar
+     * hechizos), distinta de la `esencia` pura del talismán (sube nivel / cura).
+     * Hoy solo la fusión puede intentar pasarse de este tope; ahí se recorta.
+     */
+    public const CARGA_POR_NIVEL = 6;
+
+    /**
      * Progresión maestra (docs/DECISIONES.md 024): el nivel del talismán deriva
      * el cap y los stats base de la hoja de personaje (014). Números de arranque
      * (tuning) elegidos para mantener el mago inicial (4×n3 = cap 12, defensa 8).
@@ -36,7 +44,7 @@ final class Talisman
     public const COSTO_NIVEL = 10;   // esencia para subir de nivel N a N+1 = N × esto
 
     /**
-     * Acople gema→stat (modelo A, 024): las gemas fieldeadas con esencia aportan
+     * Acople gema→stat (modelo A, 024): las gemas fieldeadas con carga aportan
      * a la hoja según su elemento. Números de arranque (tuning).
      */
     public const ATK_POR_NIVEL = 0.05;   // fuego: +5% de ataque por nivel de gema fieldeada
@@ -86,7 +94,7 @@ final class Talisman
 
     /**
      * Recalcula los stats derivados de la hoja desde el nivel del talismán y el
-     * acople de las gemas fieldeadas con esencia (modelo A, 024/025): eje
+     * acople de las gemas fieldeadas con carga (modelo A, 024/025): eje
      * ofensivo fuego+aire → ataque (multiplicador `ataqueMult`), eje defensivo
      * agua+tierra → defensa (sumando al ratio, sobre la defensa base del nivel).
      * El mapeo es interino (025): cuando existan visión y memoria, aire y tierra
@@ -102,7 +110,7 @@ final class Talisman
         $ataqueGema = 0.0;
         $defensaGema = 0;
         foreach ($talisman['gemas'] as $g) {
-            if (! $g['fieldeada'] || $g['esencia'] <= 0) {
+            if (! $g['fieldeada'] || $g['carga'] <= 0) {
                 continue; // una gema inerte no potencia la hoja (012)
             }
             if ($g['elemento'] === 'fuego' || $g['elemento'] === 'aire') {
@@ -165,9 +173,10 @@ final class Talisman
 
     /**
      * Fusiona dos gemas guardadas del mismo elemento y nivel en una de nivel+1
-     * (025): la esencia se suma, sin penalización ni techo de nivel. Solo entre
-     * gemas del inventario (no fieldeadas), como desguazar — es manejo de loadout
-     * entre peleas. La gema resultante nace guardada con un id fresco (proximoId).
+     * (025): la carga se suma, sin penalización, pero recortada al tope de la
+     * gema nueva —N×6 (026)—: el sobrante se pierde. Solo entre gemas del
+     * inventario (no fieldeadas), como desguazar — es manejo de loadout entre
+     * peleas. La gema resultante nace guardada con un id fresco (proximoId).
      */
     private static function fusionar(array $talisman, ?int $idA, ?int $idB): array
     {
@@ -183,11 +192,12 @@ final class Talisman
             return self::error($talisman, 'no coinciden tipo y nivel');
         }
 
+        $nivel = $a['nivel'] + 1;
         $nueva = [
             'id' => $talisman['proximoId'],
             'elemento' => $a['elemento'],
-            'nivel' => $a['nivel'] + 1,
-            'esencia' => $a['esencia'] + $b['esencia'],
+            'nivel' => $nivel,
+            'carga' => min($a['carga'] + $b['carga'], $nivel * self::CARGA_POR_NIVEL),
             'fieldeada' => false,
         ];
         $talisman['proximoId']++;

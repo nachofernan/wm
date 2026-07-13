@@ -632,3 +632,47 @@ de fusión por fila del inventario.
 visión); penalizar o poner techo a la fusión (por ahora sin fricción, se agrega si el loop lo pide);
 darle a aire/tierra su stat definitivo (visión/memoria) ahora (no existen como stats todavía — es el paso 3).
 Iniciativa/destreza → doble ataque queda aparcado hasta el manual de monstruos (depende de datos que no existen).
+
+## 026 — "Carga" (⚡) como recurso de la gema, tope de carga N×6, y drops pesados por la rueda — 2026-07-12
+**Decisión:** Dos ajustes que le dan cuerpo al sistema de gemas sin tocar la arquitectura ni la
+economía de fondo:
+
+- **La esencia interna de la gema pasa a llamarse `carga` (⚡).** Había dos recursos con el mismo
+  nombre `esencia`: la del **talismán** (pura — sube nivel, cura, sale de desguazar una gema) y la de
+  **adentro de la gema** (el combustible que se gasta al lanzar/bloquear). Confuso, sobre todo porque
+  desguazar convierte una gema en esencia pura = su nivel, no en "la esencia que tenía". Ahora el
+  recurso almacenado en la gema es **`carga`**, con signo ⚡ en la UI; `esencia` queda reservada para
+  la moneda pura del talismán. Es un rename de la **clave almacenada** (`gemas[].esencia` → `gemas[].carga`)
+  y del texto de jugador; **no** toca la `esencia` del talismán. Frontera deliberada: los internos del
+  `CombatResolver` (`costoEsencia`, `vidaPorEsencia`) se dejan como están — son "costo medido en carga",
+  no el recurso almacenado, y renombrarlos ampliaría el rename a su API testeada sin ganar claridad.
+
+- **Tope de carga por gema: N×6.** Una gema de nivel N topea a `N×6` de carga (constante
+  `Talisman::CARGA_POR_NIVEL = 6`). No es número nuevo: ya era el "lleno" de facto —las gemas iniciales
+  nacen con `nivel×6`, los drops también, y la barra de la UI ya se llenaba contra `nivel×6`—. La
+  **fusión** era el único lugar que podía pasarse (sumaba dos cargas sin recortar); ahora **recorta al
+  tope de la gema nueva y el sobrante se pierde** (ej.: dos n3 con 15+15=30 → n4 con `min(30, 24)=24`).
+  Es el techo blando que le faltaba a la fusión de la 025: fundir gemas muy cargadas cuesta carga, y ese
+  costo escala. La 025 quedaba "sin techo"; esto lo acota sin poner penalización explícita.
+
+- **Los drops se pesan por la afinidad del monstruo (rueda de `CombatResolver`).** El botín ya no sortea
+  el elemento uniforme: para un monstruo de elemento E, el drop pesa **60 el mismo E**, **25 el que E
+  vence**, **10 el cruzado neutral**, **5 el que vence a E** (suman 100). Ej. fuego: 60 fuego / 25 aire /
+  10 tierra / 5 agua. Lee la rueda de `CombatResolver::matchup` (única fuente; `VENCE_A` sigue privada),
+  con el mismo PRNG de combate (determinista, replayable). Cambia una decisión del jugador: **dónde
+  farmeás importa** — una colmena rinde sobre todo su propio elemento y casi nunca el que la derrota, en
+  vez de que mover izquierda-derecha en un nido de fuego te llene de agua. Además enseña la rueda por los
+  drops. La estructura de la rueda ya estaba fija en código (la ficción sigue ❓ DISENO.md §3); esto no
+  abre una rueda nueva, la usa.
+
+**Cascada técnica:** rename `esencia`→`carga` en `MazeCombate` (inicial, drop, resolver, gastarGema),
+`Talisman` (recomputar, fusionar) y todo el front (game.js: sort key, helpers, labels; blade: bindings,
+símbolo ⚡, y desambiguación de la esencia pura que usaba "es." abreviado). `MazeCombate::drop` recibe el
+elemento del monstruo y usa el nuevo `elementoDrop`. Los blobs de runs viejas de dev quedan con la clave
+`esencia` en las gemas (desechables). **Sin impacto en el generador ni en el test de paridad.**
+**Por qué:** el rename mata una ambigüedad real de dos monedas homónimas; el tope N×6 formaliza lo que la
+UI ya asumía y le da a la fusión el techo que le faltaba; los drops pesados atacan un farmeo absurdo
+(el elemento que te vence lloviendo desde su propia colmena). Ninguna toca la arquitectura.
+**Se descartó:** derramar el sobrante de la fusión a esencia pura (se elige perderlo — más simple, y
+evita acoplar fusión con progresión); pesos que sumaran 90 (se subió el mismo elemento a 60 para cerrar
+100); renombrar los internos del `CombatResolver`; exponer `VENCE_A` en vez de reusar `matchup`.

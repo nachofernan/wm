@@ -16,8 +16,8 @@
         body { margin: 0; background: var(--bg); color: var(--texto); font-family: system-ui, sans-serif; }
         .maze-layout { display: flex; align-items: flex-start; gap: 16px; padding: 16px; }
         .caja { background: var(--caja); border: 1px solid var(--linea); border-radius: 10px; padding: 14px; }
-        .col { display: flex; flex-direction: column; gap: 14px; width: 300px; }
-        .col.gemas { width: 360px; } /* la columna que más crece: se le da aire */
+        .col { display: flex; flex-direction: column; gap: 14px; width: 340px; }
+        .col.gemas { width: 410px; } /* la columna que más crece: se le da aire */
         .hoja-cab { display: flex; justify-content: space-between; align-items: center; }
         .hoja-acc { display: flex; gap: 6px; }
         h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); }
@@ -26,14 +26,21 @@
         .barra { height: 100%; transition: width 0.2s; }
         .barra.vida { background: var(--vida); } .barra.poder { background: var(--poder); } .barra.esencia { background: var(--esencia); }
         .valor { font-size: 12px; color: var(--tenue); }
-        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 8px; }
-        .stat { font-size: 12px; } .stat b { font-size: 16px; display: block; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-top: 8px; }
+        .stat { font-size: 12px; } .stat b { font-size: 14px; display: block; }
+        .hoja-vida { margin-top: 8px; }
+        .hoja-vida-cab { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; color: var(--tenue); }
+        .hoja-vida-cab b { font-size: 14px; color: var(--texto); }
+        .hoja-vida .barra-cont { height: 8px; margin-top: 3px; }
         .gema { border: 1px solid var(--linea); border-left: 3px solid var(--linea); border-radius: 6px; padding: 7px 9px; margin-bottom: 7px; background: var(--caja2); }
         .gema.fuego { border-left-color: var(--fuego); } .gema.agua { border-left-color: var(--agua); }
         .gema.tierra { border-left-color: var(--tierra); } .gema.aire { border-left-color: var(--aire); }
         .gema.inerte { opacity: 0.55; }
-        .gema.mini { padding: 6px 9px; margin-bottom: 5px; }
-        .barra-cont.slim { height: 6px; margin: 4px 0 0; }
+        .gema.mini { padding: 5px 8px; margin-bottom: 4px; }
+        .gema.mini .cab { margin-bottom: 3px; }
+        .gema.mini .acciones { margin-top: 4px; gap: 5px; }
+        .gema.mini .acciones button { padding: 3px 8px; font-size: 12px; }
+        .barra-cont.slim { height: 5px; margin: 3px 0 0; }
         .esencia-num { font-size: 12px; color: var(--esencia); font-weight: 600; }
         .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
         .punto.fuego { background: var(--fuego); } .punto.agua { background: var(--agua); }
@@ -47,6 +54,9 @@
         .filtros { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
         .chip { padding: 3px 8px; font-size: 12px; display: flex; align-items: center; gap: 3px; }
         .chip.on { border-color: var(--texto); background: #33323d; }
+        /* Mismo límite de alto que la consola (160px): si el inventario crece más
+           que eso, scrollea adentro en vez de estirar la columna. */
+        .inv-lista { max-height: 160px; overflow-y: auto; padding-right: 2px; }
         .gema.fila { display: flex; align-items: center; gap: 8px; padding: 5px 9px; margin-bottom: 4px; border-left-width: 3px; }
         .gema.fila .nom { flex: 1; font-size: 13px; text-transform: capitalize; white-space: nowrap; }
         .gema.fila .esc { color: var(--esencia); }
@@ -126,17 +136,20 @@
                             :disabled="cargando || talisman.esencia < 1 || talisman.vida >= talisman.vidaMax"
                             title="convertir esencia en vida (1:1)" x-text="`curar +${cuantoCura()}`"></button>
                         <button class="mini-btn" @click="subirNivel()" :class="{ enviando: accionActiva === 'subirNivel-' }"
-                            :disabled="cargando || talisman.esencia < costoNivel()" :title="`subir nivel del talismán (${costoNivel()} es.)`">+1 nivel</button>
+                            :disabled="cargando || talisman.esencia < costoNivel()" :title="`subir nivel del talismán (${costoNivel()} esencia)`">+1 nivel</button>
                     </div>
                 </div>
+                <div class="hoja-vida">
+                    <div class="hoja-vida-cab"><span>vida</span><b x-text="`${talisman.vida}/${talisman.vidaMax}`"></b></div>
+                    <div class="barra-cont"><div class="barra vida" :style="`width:${(talisman.vida / talisman.vidaMax) * 100}%`"></div></div>
+                </div>
+
                 <div class="stat-grid">
-                    <div class="stat">nivel<b x-text="talisman.nivel"></b><span class="valor" x-text="`${costoNivel()} es. para subir`"></span></div>
-                    <div class="stat">vida<b x-text="`${talisman.vida}/${talisman.vidaMax}`"></b></div>
                     <div class="stat">poder<b x-text="`${poderActual()}/${capEnUso()}`"></b></div>
                     <div class="stat">cap<b x-text="`${capEnUso()}/${talisman.cap}`"></b></div>
-                    <div class="stat">ranuras<b x-text="`${fieldeadas().length}/6`"></b></div>
                     <div class="stat">ataque<b x-text="`+${Math.round(talisman.ataqueMult * 100)}%`"></b></div>
                     <div class="stat">defensa<b x-text="talisman.defensa"></b></div>
+                    <div class="stat">nivel<b x-text="talisman.nivel"></b><span class="valor" x-text="`${costoNivel()} esencia para subir`"></span></div>
                     <div class="stat">esencia<b x-text="talisman.esencia"></b></div>
                     <div class="stat">bichos<b x-text="talisman.bichosCaidos"></b></div>
                     <div class="stat">gemas<b x-text="talisman.gemasJuntadas"></b></div>
@@ -145,11 +158,11 @@
 
             <div class="caja" x-show="talisman">
                 <div class="inv-head">
-                    <h2 style="margin:0">Gemas fieldeadas</h2>
+                    <h2 style="margin:0">Talismán <span class="valor" x-text="`(${fieldeadas().length}/6 ranuras)`"></span></h2>
                     <div class="orden-cont">
                         <select x-model="ordenField" @change="reordenarField()" class="orden">
                             <option value="nivel">↓ nivel</option>
-                            <option value="esencia">↓ esencia</option>
+                            <option value="carga">↓ carga</option>
                             <option value="elemento">↓ tipo</option>
                         </select>
                         <button class="mini-btn" @click="reordenarField()" title="reordenar ahora">↻</button>
@@ -159,10 +172,10 @@
                     <div class="gema mini" draggable="true"
                         @dragstart="iniciarArrastre(g.id)" @dragend="terminarArrastre()"
                         @dragover.prevent @drop.prevent="reordenarManual(arrastrando, g.id); terminarArrastre()"
-                        :class="[g.elemento, g.esencia === 0 ? 'inerte' : '', arrastrando === g.id ? 'arrastrando' : '']">
+                        :class="[g.elemento, g.carga === 0 ? 'inerte' : '', arrastrando === g.id ? 'arrastrando' : '']">
                         <div class="cab">
                             <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
-                            <span class="esencia-num" x-text="g.esencia === 0 ? 'inerte' : `${g.esencia} es · ~${golpesRestantes(g)} golpes`"></span>
+                            <span class="esencia-num" x-text="g.carga === 0 ? 'inerte' : `${g.carga} ⚡ · ~${golpesRestantes(g)} golpes`"></span>
                         </div>
                         <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
                         <div class="acciones" x-show="combate && combate.turno === 'tuTurno'">
@@ -170,8 +183,8 @@
                                 x-text="`atacar · ~${danioEstimado(g)} dmg · ${costoAtaqueLabel(g)} (${matchupAtaque(g)})`"></button>
                         </div>
                         <div class="acciones" x-show="combate && combate.turno === 'defensa'">
-                            <button @click="bloquear(g.id)" :class="{ enviando: accionActiva === `bloquear-${g.id}` }" :disabled="cargando || g.esencia === 0"
-                                x-text="`bloquear · ${costoBloqueoEstimado(g)} es. (${matchupBloqueo(g)})`"></button>
+                            <button @click="bloquear(g.id)" :class="{ enviando: accionActiva === `bloquear-${g.id}` }" :disabled="cargando || g.carga === 0"
+                                x-text="`bloquear · ${costoBloqueoEstimado(g)} ⚡ (${matchupBloqueo(g)})`"></button>
                         </div>
                         <div class="acciones" x-show="!combate">
                             <button @click="guardar(g.id)" :class="{ enviando: accionActiva === `guardar-${g.id}` }" :disabled="cargando">guardar</button>
@@ -202,7 +215,7 @@
 
                         <div class="telegrafia" x-show="combate.turno === 'tuTurno'">
                             Anticipás su golpe: <b x-text="combate.monstruo.elemento"></b> nivel <span x-text="combate.monstruo.nivelAtaque"></span>, peso <span x-text="combate.monstruo.peso"></span>.
-                            Atacá con una gema, o guardá esencia para bloquear.
+                            Atacá con una gema, o guardá carga para bloquear.
                         </div>
 
                         <div class="entrante" x-show="combate.turno === 'defensa' && combate.entrante">
@@ -238,7 +251,7 @@
                     <h2 style="margin:0">Inventario (<span x-text="inventario().length"></span>)</h2>
                     <select x-model="ordenInv" class="orden">
                         <option value="nivel">↓ nivel</option>
-                        <option value="esencia">↓ esencia</option>
+                        <option value="carga">↓ carga</option>
                         <option value="elemento">por elemento</option>
                     </select>
                 </div>
@@ -251,21 +264,23 @@
                         </button>
                     </template>
                 </div>
-                <template x-for="g in inventarioMostrado()" :key="g.id">
-                    <div class="gema fila" :class="[g.elemento, g.esencia === 0 ? 'inerte' : '']">
-                        <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
-                        <span class="valor esc" x-text="`${g.esencia} es`"></span>
-                        <div class="acciones-fila" x-show="!combate">
-                            <button class="primario mini-btn" @click="fieldear(g.id)" :class="{ enviando: accionActiva === `fieldear-${g.id}` }" :disabled="cargando || !puedeFieldear(g)" title="equipar">▲</button>
-                            <button class="mini-btn fus" x-show="modoFusion(g) !== 'oculto'"
-                                :class="{ on: modoFusion(g) === 'seleccionada', primario: modoFusion(g) === 'objetivo' }"
-                                @click="clicFusion(g)" :disabled="cargando"
-                                :title="modoFusion(g) === 'objetivo' ? 'fusionar estas dos en una n' + (g.nivel + 1) : (modoFusion(g) === 'seleccionada' ? 'cancelar fusión' : 'fusionar: elegí el par')"
-                                x-text="modoFusion(g) === 'objetivo' ? '⚗ fusionar' : '⚗'"></button>
-                            <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} es.)`" x-text="`+${g.nivel}`"></button>
+                <div class="inv-lista">
+                    <template x-for="g in inventarioMostrado()" :key="g.id">
+                        <div class="gema fila" :class="[g.elemento, g.carga === 0 ? 'inerte' : '']">
+                            <span class="nom"><span class="punto" :class="g.elemento"></span><span x-text="g.elemento"></span> <span class="valor" x-text="`n${g.nivel}`"></span></span>
+                            <span class="valor esc" x-text="`${g.carga} ⚡`"></span>
+                            <div class="acciones-fila" x-show="!combate">
+                                <button class="primario mini-btn" @click="fieldear(g.id)" :class="{ enviando: accionActiva === `fieldear-${g.id}` }" :disabled="cargando || !puedeFieldear(g)" title="equipar">▲</button>
+                                <button class="mini-btn fus" x-show="modoFusion(g) !== 'oculto'"
+                                    :class="{ on: modoFusion(g) === 'seleccionada', primario: modoFusion(g) === 'objetivo' }"
+                                    @click="clicFusion(g)" :disabled="cargando"
+                                    :title="modoFusion(g) === 'objetivo' ? 'fusionar estas dos en una n' + (g.nivel + 1) : (modoFusion(g) === 'seleccionada' ? 'cancelar fusión' : 'fusionar: elegí el par')"
+                                    x-text="modoFusion(g) === 'objetivo' ? '⚗ fusionar' : '⚗'"></button>
+                                <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} esencia)`" x-text="`+${g.nivel}`"></button>
+                            </div>
                         </div>
-                    </div>
-                </template>
+                    </template>
+                </div>
             </div>
 
             <!-- Partida -->

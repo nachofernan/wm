@@ -29,35 +29,35 @@ test('iniciar con encuentro de ambiente (sin elemento) sortea uno determinista',
     expect($a['monstruo']['elemento'])->toBe($b['monstruo']['elemento']); // determinista
 });
 
-test('atacar baja la vida del monstruo, gasta esencia y pasa a defensa', function () {
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 20, 'fieldeada' => true]);
+test('atacar baja la vida del monstruo, gasta carga y pasa a defensa', function () {
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'carga' => 20, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
 
     $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
 
     expect($r['error'])->toBeNull();
     expect($r['combate']['monstruo']['vida'])->toBeLessThan(70);
-    expect($r['talisman']['gemas'][0]['esencia'])->toBe(15); // −5 (nivel)
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(15); // −5 (nivel)
     expect($r['combate']['turno'])->toBe('defensa');
     expect($r['combate']['entrante'])->not->toBeNull();
 });
 
-test('atacar con esencia insuficiente paga el faltante con vida (3:1) y vacía la gema', function () {
-    // Gema nivel 5 con 2 de esencia: castear cuesta 5, faltan 3 → 9 de vida.
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 2, 'fieldeada' => true]);
+test('atacar con carga insuficiente paga el faltante con vida (3:1) y vacía la gema', function () {
+    // Gema nivel 5 con 2 de carga: castear cuesta 5, faltan 3 → 9 de vida.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'carga' => 2, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
 
     $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
 
     expect($r['error'])->toBeNull();
-    expect($r['talisman']['gemas'][0]['esencia'])->toBe(0);   // se drenó lo que tenía
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(0);   // se drenó lo que tenía
     expect($r['talisman']['vida'])->toBe(40 - 9);             // 3 faltantes × 3
     expect($r['combate']['monstruo']['vida'])->toBeLessThan(70); // el golpe salió igual
 });
 
 test('atacar con una gema extinta paga nivel × 3 de vida', function () {
     // Gema nivel 4 en 0: faltante = 4 → 12 de vida.
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'esencia' => 0, 'fieldeada' => true]);
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
 
     $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
@@ -68,7 +68,7 @@ test('atacar con una gema extinta paga nivel × 3 de vida', function () {
 });
 
 test('atacar fuera de turno es un error', function () {
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 20, 'fieldeada' => true]);
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'carga' => 20, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
     $combate['turno'] = 'defensa';
 
@@ -79,7 +79,7 @@ test('atacar fuera de turno es un error', function () {
 
 test('un golpe letal mata al monstruo, cierra el combate y dropea una gema', function () {
     // Gema sobrada vs sílfide (aire, vida 45): un golpe con ventaja la parte.
-    $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'esencia' => 999, 'fieldeada' => true]);
+    $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'carga' => 999, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'aire', 0, 0);
 
     $r = MazeCombate::resolver($combate, $talisman, 'atacar', 99);
@@ -121,7 +121,7 @@ test('comer el golpe fatal termina en derrota', function () {
 });
 
 test('bloquear con una gema inerte es un error', function () {
-    $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 0, 'fieldeada' => true]);
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);
     $combate['turno'] = 'defensa';
     $combate['entrante'] = ['dano' => 7, 'elemento' => 'tierra', 'peso' => 2, 'critico' => false];
@@ -129,4 +129,27 @@ test('bloquear con una gema inerte es un error', function () {
     $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
 
     expect($r['error'])->not->toBeNull();
+});
+
+test('los drops se pesan por la afinidad del monstruo (026): una colmena de fuego rinde sobre todo fuego y casi nunca agua', function () {
+    // Mato un espectro de fuego sobre 300 seeds fijos y cuento los elementos
+    // dropeados. Rueda: fuego vence a aire (25), cruza con tierra (10) y pierde
+    // contra agua (5); su mismo elemento pesa 60. El sesgo tiene que verse.
+    $conteo = ['fuego' => 0, 'agua' => 0, 'tierra' => 0, 'aire' => 0];
+
+    for ($seed = 0; $seed < 300; $seed++) {
+        $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'carga' => 999, 'fieldeada' => true]);
+        $combate = MazeCombate::iniciar($seed, 0, 0, 'fuego', 0, 0);
+        $r = MazeCombate::resolver($combate, $talisman, 'atacar', 99);
+
+        expect($r['resultado'])->toBe('victoria');
+        foreach ($r['drop'] as $d) {
+            $conteo[$d['elemento']]++;
+        }
+    }
+
+    // El propio elemento del bicho es la mayoría; el que lo vence (agua), lo más raro.
+    expect($conteo['fuego'])->toBe(max($conteo));
+    expect($conteo['agua'])->toBe(min($conteo));
+    expect($conteo['fuego'])->toBeGreaterThan($conteo['agua'] * 3);
 });

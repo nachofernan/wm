@@ -7,7 +7,7 @@ use App\Game\Talisman;
 function talismanConInventario(): array
 {
     $t = MazeCombate::talismanInicial(); // 4 fieldeadas (3×4 = 12 = cap)
-    $t['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'esencia' => 12, 'fieldeada' => false];
+    $t['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'carga' => 12, 'fieldeada' => false];
 
     return $t;
 }
@@ -80,8 +80,8 @@ test('el acople gema→stat: fieldear agua sube defensa, guardar fuego baja ataq
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 3,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
-            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 10, 'fieldeada' => false],
-            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 5, 'esencia' => 10, 'fieldeada' => true],
+            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 10, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 5, 'carga' => 10, 'fieldeada' => true],
         ],
     ]);
     expect($t['defensa'])->toBe(8);        // base, ninguna agua fieldeada
@@ -96,12 +96,12 @@ test('el acople gema→stat: fieldear agua sube defensa, guardar fuego baja ataq
     expect($t['ataqueMult'])->toBe(0.0);
 });
 
-test('una gema inerte (esencia 0) no potencia la hoja', function () {
+test('una gema inerte (carga 0) no potencia la hoja', function () {
     $t = Talisman::recomputar([
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 2,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
-            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'esencia' => 0, 'fieldeada' => true],
+            ['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true],
         ],
     ]);
 
@@ -113,8 +113,8 @@ test('el eje elemental interino (025): aire potencia ataque, tierra potencia def
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 3,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
-            ['id' => 1, 'elemento' => 'aire', 'nivel' => 4, 'esencia' => 10, 'fieldeada' => true],
-            ['id' => 2, 'elemento' => 'tierra', 'nivel' => 2, 'esencia' => 10, 'fieldeada' => true],
+            ['id' => 1, 'elemento' => 'aire', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true],
+            ['id' => 2, 'elemento' => 'tierra', 'nivel' => 2, 'carga' => 10, 'fieldeada' => true],
         ],
     ]);
 
@@ -126,7 +126,7 @@ test('el tope de ranuras rechaza fieldear una 7ª gema aunque entre en el cap', 
     // 6 gemas n1 fieldeadas (suma 6 ≤ cap 12) + una 7ª guardada.
     $gemas = [];
     foreach (range(1, 7) as $id) {
-        $gemas[] = ['id' => $id, 'elemento' => 'fuego', 'nivel' => 1, 'esencia' => 6, 'fieldeada' => $id <= 6];
+        $gemas[] = ['id' => $id, 'elemento' => 'fuego', 'nivel' => 1, 'carga' => 6, 'fieldeada' => $id <= 6];
     }
     $t = Talisman::recomputar([
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 8,
@@ -140,14 +140,14 @@ test('el tope de ranuras rechaza fieldear una 7ª gema aunque entre en el cap', 
     expect($r['error'])->toBe('no hay ranura libre');
 });
 
-test('fusionar dos gemas del mismo tipo y nivel da una de nivel+1 con la esencia sumada', function () {
-    // Ejemplo del pedido: n3 (10 es.) + n3 (2 es.) = n4 (12 es.), guardada.
+test('fusionar dos gemas del mismo tipo y nivel da una de nivel+1 con la carga sumada', function () {
+    // Ejemplo del pedido: n3 (10 ⚡) + n3 (2 ⚡) = n4 (12 ⚡), guardada.
     $t = Talisman::recomputar([
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 5,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
-            ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 10, 'fieldeada' => false],
-            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 2, 'fieldeada' => false],
+            ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 10, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 2, 'fieldeada' => false],
         ],
     ]);
 
@@ -157,9 +157,28 @@ test('fusionar dos gemas del mismo tipo y nivel da una de nivel+1 con la esencia
     $gemas = $r['talisman']['gemas'];
     expect($gemas)->toHaveCount(1);
     expect($gemas[0])->toMatchArray([
-        'id' => 5, 'elemento' => 'fuego', 'nivel' => 4, 'esencia' => 12, 'fieldeada' => false,
+        'id' => 5, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 12, 'fieldeada' => false,
     ]);
     expect($r['talisman']['proximoId'])->toBe(6);
+});
+
+test('la fusión recorta la carga al tope de la gema nueva (N×6): el sobrante se pierde (026)', function () {
+    // Dos n3 con 15 + 15 = 30 → n4, tope 4×6 = 24: sobran 6 y se descartan.
+    $t = Talisman::recomputar([
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 5,
+        'bichosCaidos' => 0, 'gemasJuntadas' => 0,
+        'gemas' => [
+            ['id' => 1, 'elemento' => 'agua', 'nivel' => 3, 'carga' => 15, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'carga' => 15, 'fieldeada' => false],
+        ],
+    ]);
+
+    $r = Talisman::aplicar($t, 'fusionar', 1, 2);
+
+    expect($r['error'])->toBeNull();
+    expect($r['talisman']['gemas'][0])->toMatchArray([
+        'elemento' => 'agua', 'nivel' => 4, 'carga' => 24, // min(30, 24)
+    ]);
 });
 
 test('fusionar rechaza tipos o niveles distintos, la misma gema, y gemas fieldeadas', function () {
@@ -167,10 +186,10 @@ test('fusionar rechaza tipos o niveles distintos, la misma gema, y gemas fieldea
         'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 6,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
-            ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 6, 'fieldeada' => false],
-            ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'esencia' => 6, 'fieldeada' => false],
-            ['id' => 3, 'elemento' => 'fuego', 'nivel' => 4, 'esencia' => 6, 'fieldeada' => false],
-            ['id' => 4, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 6, 'fieldeada' => true],
+            ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 6, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'carga' => 6, 'fieldeada' => false],
+            ['id' => 3, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 6, 'fieldeada' => false],
+            ['id' => 4, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 6, 'fieldeada' => true],
         ],
     ]);
 

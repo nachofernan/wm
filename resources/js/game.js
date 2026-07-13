@@ -3,7 +3,7 @@ import { marcas as calcularMarcas } from './mapaBuilder.js';
 import { campo as calcularCampo } from './encuentroBuilder.js';
 import { crearPrng, randBelow } from './prng.js';
 
-const CELDA = 20; // px por celda en el canvas
+const CELDA = 24; // px por celda en el canvas
 
 // Color del tinte de encuentro por elemento (docs/DECISIONES.md 016: color =
 // elemento, alpha = probabilidad). Las celdas de solo ambiente (sin elemento)
@@ -105,10 +105,10 @@ export function game() {
         // no viaja al servidor). Mayores siempre arriba.
         filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
         fusionSel: null, // id de la 1ª gema elegida para fusionar (025), o null
-        ordenInv: 'nivel', // 'nivel' | 'esencia' | 'elemento'
-        ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'esencia' | 'elemento'
+        ordenInv: 'nivel', // 'nivel' | 'carga' | 'elemento'
+        ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'carga' | 'elemento'
         ordenFieldIds: [], // orden CONGELADO de las fieldeadas (ids); solo se recalcula al cambiar
-                           // el select o el set fieldeado — nunca por un ataque que baje esencia
+                           // el select o el set fieldeado — nunca por un ataque que baje carga
         arrastrando: null, // id de la gema fieldeada que se está arrastrando, o null
 
         init() {
@@ -222,13 +222,20 @@ export function game() {
                 ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
             };
 
-            // Ícono centrado sobre la celda ya pintada (llave/candado): se nota
-            // qué es cada marca sin tener que recordar el color.
+            // Ícono centrado sobre la celda ya pintada (llave/candado). Contra el
+            // fondo dorado/naranja de la marca, el emoji sin más se pierde — se le
+            // pone un badge oscuro atrás para que siempre haya contraste.
             const icono = ({ x, y }, simbolo) => {
-                ctx.font = `${CELDA * 0.7}px sans-serif`;
+                const cx = x * CELDA + CELDA / 2;
+                const cy = y * CELDA + CELDA / 2;
+                ctx.beginPath();
+                ctx.arc(cx, cy, CELDA * 0.4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(10, 10, 14, 0.8)';
+                ctx.fill();
+                ctx.font = `${CELDA * 0.62}px sans-serif`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(simbolo, x * CELDA + CELDA / 2, y * CELDA + CELDA / 2 + 1);
+                ctx.fillText(simbolo, cx, cy + 1);
             };
 
             pintar(this.marcas.entrada, COLOR_MARCA.entrada);
@@ -475,8 +482,8 @@ export function game() {
         // Compartido por el inventario y las fieldeadas del talismán.
         ordenarGemas(lista, clave) {
             const orden = {
-                nivel: (a, b) => b.nivel - a.nivel || b.esencia - a.esencia,
-                esencia: (a, b) => b.esencia - a.esencia || b.nivel - a.nivel,
+                nivel: (a, b) => b.nivel - a.nivel || b.carga - a.carga,
+                carga: (a, b) => b.carga - a.carga || b.nivel - a.nivel,
                 elemento: (a, b) => ELEMENTOS.indexOf(a.elemento) - ELEMENTOS.indexOf(b.elemento) || b.nivel - a.nivel,
             };
             return [...lista].sort(orden[clave]);
@@ -491,7 +498,7 @@ export function game() {
 
         // Recalcula el orden congelado de las fieldeadas. Se llama SOLO desde el
         // onchange del select: ni al equipar/guardar ni al atacar. Si se reordenara
-        // en vivo, bajar la esencia de una gema la haría saltar de lugar en plena
+        // en vivo, bajar la carga de una gema la haría saltar de lugar en plena
         // pelea, que es justo lo molesto que se quiere evitar.
         reordenarField() {
             this.ordenFieldIds = this.ordenarGemas(this.fieldeadas(), this.ordenField).map((g) => g.id);
@@ -526,21 +533,21 @@ export function game() {
         // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
         conteoInv(elem) { return this.inventario().filter((g) => g.elemento === elem).length; },
 
-        // Golpes que aún banca una gema: cada ataque cuesta su nivel en esencia.
+        // Golpes que aún banca una gema: cada ataque cuesta su nivel en carga.
         // Es lo que de verdad importa mirar (no la barra): cuántos casteos quedan.
-        golpesRestantes(g) { return Math.floor(g.esencia / (g.nivel || 1)); },
+        golpesRestantes(g) { return Math.floor(g.carga / (g.nivel || 1)); },
 
-        // Llenado de la barra de esencia: esencia relativa a una carga llena de
-        // drop (nivel × 6). Referencial — cuánto le queda de su máximo típico.
-        anchoEsencia(g) { return Math.min(100, (g.esencia / (g.nivel * 6 || 1)) * 100); },
+        // Llenado de la barra de carga: carga relativa al tope de la gema
+        // (nivel × 6, 026). Referencial — cuánto le queda de su máximo.
+        anchoEsencia(g) { return Math.min(100, (g.carga / (g.nivel * 6 || 1)) * 100); },
 
-        // Etiqueta del costo de atacar: esencia si alcanza, o "X es +Y vida" cuando
+        // Etiqueta del costo de atacar: carga si alcanza, o "X ⚡ +Y vida" cuando
         // el faltante se paga con vida a la penalidad de la 021. Espejo de MazeCombate.
         costoAtaqueLabel(g) {
-            const costo = g.nivel; // atacar cuesta esencia = nivel
-            if (g.esencia >= costo) return `−${costo} es.`;
-            const vida = (costo - g.esencia) * COMBATE.vidaPorEsencia;
-            return g.esencia > 0 ? `−${g.esencia} es +${vida} vida` : `−${vida} vida`;
+            const costo = g.nivel; // atacar cuesta carga = nivel
+            if (g.carga >= costo) return `−${costo} ⚡`;
+            const vida = (costo - g.carga) * COMBATE.vidaPorEsencia;
+            return g.carga > 0 ? `−${g.carga} ⚡ +${vida} vida` : `−${vida} vida`;
         },
 
         // Cuánta vida repone curar ahora: esencia pura → vida 1:1, sin pasarse del
@@ -551,7 +558,7 @@ export function game() {
         },
 
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
-        poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.esencia > 0 ? g.nivel : 0), 0); },
+        poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.carga > 0 ? g.nivel : 0), 0); },
 
         // ── Preview de combate (solo display; la resolución la hace el servidor) ──
         // Daño estimado de atacar con la gema g al monstruo actual: tirada media,
@@ -567,7 +574,7 @@ export function game() {
             return Math.max(1, Math.round(poder * mitig * mult * bono));
         },
 
-        // Costo en esencia de bloquear el golpe entrante con la gema g. Espejo de
+        // Costo en carga de bloquear el golpe entrante con la gema g. Espejo de
         // CombatResolver::costoBloqueo (el azar del bloqueo es chico; esto es la media).
         costoBloqueoEstimado(g) {
             if (!this.combate || !this.combate.entrante) return 0;

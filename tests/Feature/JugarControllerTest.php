@@ -120,7 +120,7 @@ test('atacar en combate baja la vida del monstruo y devuelve el estado', functio
 test('matar al monstruo registra el evento y deja el drop en el inventario', function () {
     // Gema sobrada vs sílfide: un golpe letal cierra el combate con victoria.
     $talisman = MazeCombate::talismanInicial();
-    $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'esencia' => 999, 'fieldeada' => true]];
+    $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'carga' => 999, 'fieldeada' => true]];
     $combate = MazeCombate::iniciar(1, 5, 5, 'aire', 0, 0);
     $run = Run::create([
         'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
@@ -140,7 +140,7 @@ test('matar al monstruo registra el evento y deja el drop en el inventario', fun
 test('fieldear una gema del inventario la equipa fuera de combate', function () {
     $talisman = MazeCombate::talismanInicial();
     $talisman['gemas'][2]['fieldeada'] = false; // dejo libre cap (saco la de tierra n3)
-    $talisman['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'esencia' => 12, 'fieldeada' => false];
+    $talisman['gemas'][] = ['id' => 9, 'elemento' => 'aire', 'nivel' => 2, 'carga' => 12, 'fieldeada' => false];
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30, 'talisman' => $talisman,
     ]);

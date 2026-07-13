@@ -45,10 +45,10 @@ final class MazeCombate
             'defensa' => 0, // idem
             'esencia' => 0,
             'gemas' => [
-                ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
-                ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
-                ['id' => 3, 'elemento' => 'tierra', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
-                ['id' => 4, 'elemento' => 'aire', 'nivel' => 3, 'esencia' => 18, 'fieldeada' => true],
+                ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 18, 'fieldeada' => true],
+                ['id' => 2, 'elemento' => 'agua', 'nivel' => 3, 'carga' => 18, 'fieldeada' => true],
+                ['id' => 3, 'elemento' => 'tierra', 'nivel' => 3, 'carga' => 18, 'fieldeada' => true],
+                ['id' => 4, 'elemento' => 'aire', 'nivel' => 3, 'carga' => 18, 'fieldeada' => true],
             ],
             'proximoId' => 5,
             'bichosCaidos' => 0,
@@ -123,21 +123,21 @@ final class MazeCombate
 
             $r = self::golpe($combate, $g['nivel'], $g['elemento'], $combate['monstruo']['defensa'], $combate['monstruo']['elemento'], $talisman['ataqueMult'] ?? 0);
 
-            if ($g['esencia'] >= $r['costoEsencia']) {
+            if ($g['carga'] >= $r['costoEsencia']) {
                 self::gastarGema($talisman, $gemaId, $r['costoEsencia']);
-                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} — {$r['dano']} de daño ({$r['matchup']}, −{$r['costoEsencia']} es.)", 'crit' => $r['critico']];
+                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} — {$r['dano']} de daño ({$r['matchup']}, −{$r['costoEsencia']} ⚡)", 'crit' => $r['critico']];
             } else {
-                // Esencia insuficiente: se gasta la que haya y el faltante se paga
+                // Carga insuficiente: se gasta la que haya y el faltante se paga
                 // con vida a la penalidad de la 021 (cubre la gema extinta y el
                 // pago parcial en una sola regla).
-                $faltante = $r['costoEsencia'] - $g['esencia'];
+                $faltante = $r['costoEsencia'] - $g['carga'];
                 $costoVida = (new CombatResolver(new Prng(0)))->costoVida($faltante);
-                if ($g['esencia'] > 0) {
-                    self::gastarGema($talisman, $gemaId, $g['esencia']);
+                if ($g['carga'] > 0) {
+                    self::gastarGema($talisman, $gemaId, $g['carga']);
                 }
                 $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
-                $detalle = $g['esencia'] > 0 ? "{$g['esencia']} es. + {$costoVida} de vida" : "{$costoVida} de vida";
-                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} sin esencia — {$r['dano']} de daño ({$r['matchup']}), pagás {$detalle}", 'crit' => $r['critico']];
+                $detalle = $g['carga'] > 0 ? "{$g['carga']} ⚡ + {$costoVida} de vida" : "{$costoVida} de vida";
+                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} sin carga — {$r['dano']} de daño ({$r['matchup']}), pagás {$detalle}", 'crit' => $r['critico']];
             }
 
             $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
@@ -174,18 +174,18 @@ final class MazeCombate
                 return $error('no hay golpe entrante');
             }
             $g = self::gema($talisman, $gemaId, true);
-            if ($g === null || $g['esencia'] <= 0) {
+            if ($g === null || $g['carga'] <= 0) {
                 return $error('gema inválida o inerte');
             }
             $e = $combate['entrante'];
             $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
             $costo = (new CombatResolver($prng))->costoBloqueo($e['peso'], $g['elemento'], $e['elemento']);
 
-            if ($g['esencia'] < $costo) {
-                return $error("{$g['elemento']} tiene {$g['esencia']} de esencia; bloquear cuesta {$costo}");
+            if ($g['carga'] < $costo) {
+                return $error("{$g['elemento']} tiene {$g['carga']} de carga; bloquear cuesta {$costo}");
             }
             self::gastarGema($talisman, $gemaId, $costo);
-            $log[] = ['txt' => "bloqueás con {$g['elemento']} — golpe anulado (−{$costo} es.)", 'crit' => false];
+            $log[] = ['txt' => "bloqueás con {$g['elemento']} — golpe anulado (−{$costo} ⚡)", 'crit' => false];
             $combate['turno'] = 'tuTurno';
             $combate['entrante'] = null;
 
@@ -233,7 +233,7 @@ final class MazeCombate
 
         $drops = [];
         for ($i = 0; $i < $cantidad; $i++) {
-            $gema = self::drop($prng, $dificultad, $talisman['proximoId']);
+            $gema = self::drop($prng, $dificultad, $talisman['proximoId'], $combate['monstruo']['elemento']);
             $talisman['gemas'][] = $gema;
             $talisman['proximoId']++;
             $talisman['gemasJuntadas']++;
@@ -271,16 +271,48 @@ final class MazeCombate
     }
 
     /**
-     * Gema del botín: elemento y nivel derivados del PRNG de combate, escalados
-     * por la dificultad del monstruo. Esencia generosa para que el neto por
-     * pelea sea positivo (si no, es espiral de muerte). Números de arranque.
+     * Gema del botín: elemento pesado por la afinidad del monstruo (026), nivel
+     * escalado por su dificultad. La carga nace llena (nivel × 6) para que el
+     * neto por pelea sea positivo (si no, es espiral de muerte). Números de
+     * arranque.
      */
-    private static function drop(Prng $prng, int $dificultad, int $id): array
+    private static function drop(Prng $prng, int $dificultad, int $id, string $elemMonstruo): array
     {
-        $elemento = EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
+        $elemento = self::elementoDrop($prng, $elemMonstruo);
         $nivel = $dificultad + $prng->randBelow(3); // dificultad .. +2
 
-        return ['id' => $id, 'elemento' => $elemento, 'nivel' => $nivel, 'esencia' => $nivel * 6, 'fieldeada' => false];
+        return ['id' => $id, 'elemento' => $elemento, 'nivel' => $nivel, 'carga' => $nivel * Talisman::CARGA_POR_NIVEL, 'fieldeada' => false];
+    }
+
+    /**
+     * Sortea el elemento de un drop pesado por la rueda (026), recorriendo
+     * EncuentroBuilder::ELEMENTOS en orden fijo (determinista, replayable). Pesos
+     * sobre 100: 60 el mismo elemento del monstruo, 25 el que ese elemento vence,
+     * 5 el que lo vence, 10 el cruzado neutral. Reusa CombatResolver::matchup como
+     * única fuente de la rueda: una colmena rinde sobre todo su propio elemento y
+     * casi nunca el que la derrota, en vez de un farmeo uniforme.
+     */
+    private static function elementoDrop(Prng $prng, string $elemMonstruo): string
+    {
+        $tirada = $prng->randBelow(100);
+        $acum = 0;
+        foreach (EncuentroBuilder::ELEMENTOS as $c) {
+            if ($c === $elemMonstruo) {
+                $peso = 60;
+            } else {
+                $peso = match (CombatResolver::matchup($elemMonstruo, $c)) {
+                    'ventaja' => 25, // el monstruo vence a $c
+                    'reves' => 5,    // $c vence al monstruo
+                    default => 10,   // cruzado neutral
+                };
+            }
+            $acum += $peso;
+            if ($tirada < $acum) {
+                return $c;
+            }
+        }
+
+        return $elemMonstruo; // los pesos suman 100: el loop siempre resuelve antes
     }
 
     /** Busca una gema por id; si $soloFieldeada, solo entre las del talismán. */
@@ -295,12 +327,12 @@ final class MazeCombate
         return null;
     }
 
-    /** Descuenta esencia de una gema fieldeada, in place. */
+    /** Descuenta carga de una gema fieldeada, in place. */
     private static function gastarGema(array &$talisman, int $id, int $costo): void
     {
         foreach ($talisman['gemas'] as &$g) {
             if ($g['id'] === $id) {
-                $g['esencia'] = max(0, $g['esencia'] - $costo);
+                $g['carga'] = max(0, $g['carga'] - $costo);
 
                 return;
             }
