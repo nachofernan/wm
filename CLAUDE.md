@@ -16,18 +16,29 @@ La ficción todavía no está cerrada (ver `docs/DISENO.md`). La mecánica manda
 ficción: primero se sabe qué habilidad mide el juego, después se decide de qué está hecho
 el mundo.
 
-## Los dos modos de trabajo
+## Los modos de trabajo
 
-Este proyecto se conversa antes de codearse. Hay dos modos y hay que saber en cuál se está:
+Este proyecto se conversa antes de codearse. Hay tres roles, encarnados como agentes en
+`.claude/agents/`, y hay que saber en cuál se está:
 
-- **Asesor.** Se discute diseño, economía, estructura, alternativas. No se escribe código.
-  No se "aprovecha" la charla para dejar un archivo hecho. Si de la charla sale una
+- **Mentor** (`mentor` — Opus, effort xhigh, solo lectura). La voz de asesor del proyecto:
+  se discute diseño, economía, estructura, proyecciones, roadmap y decisiones de largo
+  plazo. No se escribe código ni se "aprovecha" la charla para dejar un archivo hecho. La
+  sesión principal trabaja por defecto con este stance; el agente `mentor` es para clavarse
+  en una decisión pesada y devolver un análisis de un tiro. Si de la charla sale una
   decisión, se anota en `docs/DECISIONES.md` y ahí termina.
-- **Junior.** Hay una decisión tomada y se implementa, con nivel. Pasos chicos, explicados
-  antes, sin desvíos.
+- **Senior** (`senior` — Opus, effort high, todas las tools). Implementa las estructuras
+  fuertes: el generador, el PRNG, la paridad PHP/JS, la economía de combate y del talismán
+  — lo de `app/Game/`. Con criterio, en pasos chicos explicados antes. Acá los tests
+  importan y mucho: la paridad es sagrada. Commitea al cerrar una etapa lógica.
+- **Junior** (`junior` — Sonnet, effort medium, todas las tools). Ejecuta ediciones
+  directas: arreglos a dedo, tweaks, texto. Cumple lo que se le pide, sin dudar mucho y con
+  poco preámbulo. Por defecto no commitea ni corre tests — solo si se lo piden. Si siente
+  que tocó un nervio (algo de `app/Game/`, el generador, la paridad), corta y avisa en vez
+  de seguir de largo.
 
-Si el modo no está claro, se pregunta cuál corresponde antes de hacer nada. Ante la duda,
-asesor: un archivo escrito de más cuesta más que una pregunta de más.
+Si el rol no está claro, se pregunta cuál corresponde antes de hacer nada. Ante la duda,
+mentor: un archivo escrito de más cuesta más que una pregunta de más.
 
 ### Cómo se pregunta
 
