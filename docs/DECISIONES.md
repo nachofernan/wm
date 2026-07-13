@@ -676,3 +676,51 @@ UI ya asumía y le da a la fusión el techo que le faltaba; los drops pesados at
 **Se descartó:** derramar el sobrante de la fusión a esencia pura (se elige perderlo — más simple, y
 evita acoplar fusión con progresión); pesos que sumaran 90 (se subió el mismo elemento a 60 para cerrar
 100); renombrar los internos del `CombatResolver`; exponer `VENCE_A` en vez de reusar `matchup`.
+
+## 027 — Dificultad y loot por distancia a la entrada; fusión con costo de esencia — 2026-07-13
+**Decisión:** Cierra la charla sobre escalar dificultad y botín dentro de un mismo maze. Cuatro puntos;
+dos son diseño registrado con implementación pendiente, dos se implementan en esta etapa.
+
+- **La dificultad escala con la distancia a la entrada, como rampa suave (~2x entrada→salida)
+  [PENDIENTE].** `t = dInicio / salida.distancia` ∈ [0,1]. El **arquetipo por elemento es el ESTILO**
+  (fuego glass cannon, tierra tanque) y la **distancia es el TIER** (los stats del monstruo escalan ×(1+t)
+  aprox). El arquetipo **conserva su offset** de dificultad (tierra más duro que aire al mismo tier). Esto
+  reemplaza el `vida = base + prob` como único escalado intra-maze ([MazeCombate.php:74]); el calor de
+  colmena (`prob`) queda como **bump local sobre el tier**, no como el eje principal. No contradice la 011:
+  los **saltos** gruesos de dificultad viven ENTRE mazes (secuencia), esto es la **rampa continua DENTRO**
+  de un maze — dos ejes que componen. El dato de distancia ya existe paritario en `MapaBuilder::distancias` /
+  `mapaBuilder.js`; falta pasarlo a `MazeCombate::iniciar`. Números de arranque, se ajustan jugando.
+
+- **El nivel del loot desliza con la distancia [PENDIENTE].** Reemplaza `nivel = dificultad + randBelow(3)`
+  (drop por arquetipo, [MazeCombate.php:282]) por un drop centrado que corre con `t`: entrada N2/N3, mitad
+  N4/N5, salida **pico N5/N6 y N7 como cola rara (≤15%)**. El campo `dificultad` del arquetipo se queda para
+  stats del monstruo y el multi-drop (019), deja de fijar el nivel del drop. Los drops grandes del fondo
+  **superan el cap** del talismán (024) y alimentan la meta-progresión (desguace→esencia→nivel), no el loadout
+  inmediato — coherente con DISENO §3. Números de arranque.
+
+- **Fusionar cuesta 1 de esencia pura [IMPLEMENTADO].** Además del costo de oportunidad que ya tenía (dos n3
+  desguazadas rinden 6 de esencia; fusionadas a n4 rinden 4 → se pierden 2), fusionar ahora **descuenta 1 de
+  esencia pura** y se **bloquea si no hay**. Acopla la fusión al pozo que también paga niveles (024) y curar
+  (021): fusionar compite por el mismo recurso, y hay un **gate temprano natural** (el mago inicial arranca con
+  0 esencia → no se fusiona en el turno 1 sin desguazar antes). **Revierte la línea de la 026** ("evita acoplar
+  fusión con progresión"): aquella era sobre derramar el *sobrante* a esencia; esto es un *costo*, pero cruza la
+  misma frontera **a propósito** — el acople agrega una decisión (fusionar vs subir nivel vs curar) y frena
+  holdear gemas para fusionarlas gratis en masa. `1` fijo es número de arranque; si el hoardeo tardío resulta
+  real, se escala.
+
+- **Panel de datos de celda en la caja de la rueda [IMPLEMENTADO, tooling de dev].** En la caja de la rueda
+  elemental se muestran los datos de la celda actual (prob de encuentro %, elemento, tipo: entrada / salida /
+  puerta / llave / colmena / normal) y se saca el texto explicativo de la rueda. Es tooling de
+  desarrollo/imaginarium: hoy se ve todo. No es mecánica nueva — es el **revelado de datos de celda de la 014**
+  (la visión los revela gradualmente) todavía **sin gatear**; el gateo por visión y la niebla se ponen encima
+  más adelante ("primero el maze, después la niebla").
+
+**Por qué:** El escalado por distancia resuelve que hoy la dificultad la manda solo el elemento (una Sílfide
+cerca de la salida es tan trivial como en la entrada, un Gólem es pesadilla en todos lados) — con la rampa, el
+fondo del maze pega tan duro como grande está tu talismán para entonces, que es el treadmill que el pilar de
+planificación (§2) quiere. El loot deslizante le da el premio creciente que tira a pelear el fondo peligroso. El
+costo de fusión mete a la fusión en la economía de esencia, donde compite por decisiones.
+**Se descartó:** hacer del eje intra-maze la progresión primaria (los saltos gruesos quedan para la secuencia de
+mazes, 011 — esto es la rampa fina); aplanar los arquetipos a puro estilo sin offset de dificultad (se conserva
+el offset); costo de fusión escalado desde el arranque (se elige `1` fijo, legible; se escala solo si el hoardeo
+lo pide); fijar ya los números del escalado (tuning, se ajustan jugando).

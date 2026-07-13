@@ -42,6 +42,10 @@ const RADIO_VISION = 1;
 // esto Y el cap (suma de niveles); acá se replica solo para el preview del botón.
 const RANURAS = 6;
 
+// Esencia pura que cuesta fusionar — espejo de Talisman::COSTO_FUSION (027). Acá
+// solo deshabilita el botón cuando no alcanza; el servidor valida de verdad.
+const COSTO_FUSION = 1;
+
 /** Relación del elemento a frente a b: 'ventaja' | 'reves' | 'neutral'. */
 function matchup(a, b) {
     if (VENCE_A[a] === b) return 'ventaja';
@@ -417,6 +421,7 @@ export function game() {
         fieldear(id) { this.accionTalisman('fieldear', id); },
         guardar(id) { this.accionTalisman('guardar', id); },
         desguazar(id) { this.accionTalisman('desguazar', id); },
+        vaciar() { this.accionTalisman('vaciar'); },
         subirNivel() { this.accionTalisman('subirNivel'); },
         curar() { this.accionTalisman('curar'); },
 
@@ -460,9 +465,16 @@ export function game() {
         },
 
         clicFusion(g) {
-            if (this.modoFusion(g) === 'objetivo') this.fusionar(g.id);
-            else this.elegirFusion(g.id);
+            if (this.modoFusion(g) === 'objetivo') {
+                if (this.talisman.esencia < COSTO_FUSION) return; // sin esencia no se fusiona (027)
+                this.fusionar(g.id);
+            } else {
+                this.elegirFusion(g.id);
+            }
         },
+
+        // Esencia pura que cuesta fusionar — espejo de Talisman::COSTO_FUSION (027).
+        costoFusion() { return COSTO_FUSION; },
 
         // Esencia para subir de nivel — espejo de Talisman::costoNivel (024): nivel × COSTO_NIVEL.
         costoNivel() { return this.talisman ? this.talisman.nivel * 10 : 0; },

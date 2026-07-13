@@ -143,7 +143,7 @@ test('el tope de ranuras rechaza fieldear una 7ª gema aunque entre en el cap', 
 test('fusionar dos gemas del mismo tipo y nivel da una de nivel+1 con la carga sumada', function () {
     // Ejemplo del pedido: n3 (10 ⚡) + n3 (2 ⚡) = n4 (12 ⚡), guardada.
     $t = Talisman::recomputar([
-        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 5,
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 2, 'proximoId' => 5,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
             ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 10, 'fieldeada' => false],
@@ -160,12 +160,13 @@ test('fusionar dos gemas del mismo tipo y nivel da una de nivel+1 con la carga s
         'id' => 5, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 12, 'fieldeada' => false,
     ]);
     expect($r['talisman']['proximoId'])->toBe(6);
+    expect($r['talisman']['esencia'])->toBe(1); // 2 − COSTO_FUSION (027)
 });
 
 test('la fusión recorta la carga al tope de la gema nueva (N×6): el sobrante se pierde (026)', function () {
     // Dos n3 con 15 + 15 = 30 → n4, tope 4×6 = 24: sobran 6 y se descartan.
     $t = Talisman::recomputar([
-        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 5,
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 1, 'proximoId' => 5,
         'bichosCaidos' => 0, 'gemasJuntadas' => 0,
         'gemas' => [
             ['id' => 1, 'elemento' => 'agua', 'nivel' => 3, 'carga' => 15, 'fieldeada' => false],
@@ -197,6 +198,35 @@ test('fusionar rechaza tipos o niveles distintos, la misma gema, y gemas fieldea
     expect(Talisman::aplicar($t, 'fusionar', 1, 3)['error'])->toBe('no coinciden tipo y nivel');
     expect(Talisman::aplicar($t, 'fusionar', 1, 1)['error'])->toBe('elegí dos gemas distintas');
     expect(Talisman::aplicar($t, 'fusionar', 1, 4)['error'])->toBe('gema inválida'); // la 4 está fieldeada
+});
+
+test('fusionar sin esencia suficiente es rechazado y no muta nada (027)', function () {
+    // Par válido (mismo tipo y nivel, ambas guardadas) pero esencia 0.
+    $t = Talisman::recomputar([
+        'nivel' => 1, 'vida' => 40, 'vidaMax' => 40, 'esencia' => 0, 'proximoId' => 5,
+        'bichosCaidos' => 0, 'gemasJuntadas' => 0,
+        'gemas' => [
+            ['id' => 1, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 6, 'fieldeada' => false],
+            ['id' => 2, 'elemento' => 'fuego', 'nivel' => 3, 'carga' => 6, 'fieldeada' => false],
+        ],
+    ]);
+
+    $r = Talisman::aplicar($t, 'fusionar', 1, 2);
+
+    expect($r['error'])->toBe('esencia insuficiente para fusionar');
+    expect($r['talisman']['gemas'])->toHaveCount(2);       // no se fusionó
+    expect($r['talisman']['proximoId'])->toBe(5);          // no se consumió id
+});
+
+test('vaciar manda todas las gemas fieldeadas al inventario (027)', function () {
+    $t = MazeCombate::talismanInicial(); // 4 gemas fieldeadas (cap 12/12)
+
+    $r = Talisman::aplicar($t, 'vaciar', null);
+
+    expect($r['error'])->toBeNull();
+    expect(collect($r['talisman']['gemas'])->every(fn ($g) => $g['fieldeada'] === false))->toBeTrue();
+    expect(Talisman::ranurasEnUso($r['talisman']))->toBe(0);
+    expect(Talisman::capEnUso($r['talisman']))->toBe(0);
 });
 
 test('subir nivel sin esencia suficiente es rechazado', function () {

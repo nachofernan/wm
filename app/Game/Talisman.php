@@ -44,6 +44,15 @@ final class Talisman
     public const COSTO_NIVEL = 10;   // esencia para subir de nivel N a N+1 = N × esto
 
     /**
+     * Esencia pura que cuesta fusionar dos gemas (docs/DECISIONES.md 027). Además
+     * del costo de oportunidad que la fusión ya tenía (rinde menos esencia que
+     * desguazar las dos por separado), este costo directo la mete en la economía
+     * de esencia —compite con subir nivel y curar— y frena holdear gemas para
+     * fusionarlas gratis en masa. Número de arranque (tuning).
+     */
+    public const COSTO_FUSION = 1;
+
+    /**
      * Acople gema→stat (modelo A, 024): las gemas fieldeadas con carga aportan
      * a la hoja según su elemento. Números de arranque (tuning).
      */
@@ -65,6 +74,7 @@ final class Talisman
             'guardar' => self::guardar($talisman, $gemaId),
             'desguazar' => self::desguazar($talisman, $gemaId),
             'fusionar' => self::fusionar($talisman, $gemaId, $gemaId2),
+            'vaciar' => self::vaciar($talisman),
             'subirNivel' => self::subirNivel($talisman),
             'curar' => self::curar($talisman),
             default => self::error($talisman, 'acción desconocida'),
@@ -174,7 +184,8 @@ final class Talisman
     /**
      * Fusiona dos gemas guardadas del mismo elemento y nivel en una de nivel+1
      * (025): la carga se suma, sin penalización, pero recortada al tope de la
-     * gema nueva —N×6 (026)—: el sobrante se pierde. Solo entre gemas del
+     * gema nueva —N×6 (026)—: el sobrante se pierde. Cuesta COSTO_FUSION de
+     * esencia pura (027); sin esa esencia, no se fusiona. Solo entre gemas del
      * inventario (no fieldeadas), como desguazar — es manejo de loadout entre
      * peleas. La gema resultante nace guardada con un id fresco (proximoId).
      */
@@ -191,6 +202,10 @@ final class Talisman
         if ($a['elemento'] !== $b['elemento'] || $a['nivel'] !== $b['nivel']) {
             return self::error($talisman, 'no coinciden tipo y nivel');
         }
+        if ($talisman['esencia'] < self::COSTO_FUSION) {
+            return self::error($talisman, 'esencia insuficiente para fusionar');
+        }
+        $talisman['esencia'] -= self::COSTO_FUSION;
 
         $nivel = $a['nivel'] + 1;
         $nueva = [
@@ -205,6 +220,21 @@ final class Talisman
             $talisman['gemas'], fn ($x) => $x['id'] !== $idA && $x['id'] !== $idB,
         ));
         $talisman['gemas'][] = $nueva;
+
+        return self::ok($talisman);
+    }
+
+    /**
+     * Manda todas las gemas fieldeadas al inventario de un saque (027). Guardar
+     * nunca se rechaza, así que vaciar siempre es legal y no cuesta nada; si no
+     * había ninguna fieldeada, el estado queda igual (recomputar es idempotente).
+     */
+    private static function vaciar(array $talisman): array
+    {
+        foreach ($talisman['gemas'] as &$g) {
+            $g['fieldeada'] = false;
+        }
+        unset($g);
 
         return self::ok($talisman);
     }

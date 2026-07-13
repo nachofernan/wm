@@ -163,7 +163,7 @@ class JugarController extends Controller
         $run = Run::where('token', $token)->firstOrFail();
 
         $datos = $request->validate([
-            'accion' => 'required|in:fieldear,guardar,desguazar,fusionar,subirNivel,curar',
+            'accion' => 'required|in:fieldear,guardar,desguazar,fusionar,vaciar,subirNivel,curar',
             'gemaId' => 'nullable|integer',
             'gemaId2' => 'nullable|integer',
         ]);

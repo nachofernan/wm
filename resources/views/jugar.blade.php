@@ -216,6 +216,8 @@
                 <div class="inv-head">
                     <h2 style="margin:0">Talismán <span class="valor" x-text="`(${fieldeadas().length}/6 ranuras)`"></span></h2>
                     <div class="orden-cont">
+                        <button class="mini-btn" @click="vaciar()" :class="{ enviando: accionActiva === 'vaciar-' }"
+                            :disabled="cargando || combate || !fieldeadas().length" title="mandar todas las gemas al inventario">vaciar</button>
                         <select x-model="ordenField" @change="reordenarField()" class="orden">
                             <option value="nivel">↓ nivel</option>
                             <option value="carga">↓ carga</option>
@@ -332,9 +334,9 @@
                             <div class="acciones-fila" x-show="!combate">
                                 <button class="mini-btn fus" x-show="modoFusion(g) !== 'oculto'"
                                     :class="{ on: modoFusion(g) === 'seleccionada', primario: modoFusion(g) === 'objetivo' }"
-                                    @click="clicFusion(g)" :disabled="cargando"
-                                    :title="modoFusion(g) === 'objetivo' ? 'fusionar estas dos en una n' + (g.nivel + 1) : (modoFusion(g) === 'seleccionada' ? 'cancelar fusión' : 'fusionar: elegí el par')"
-                                    x-text="modoFusion(g) === 'objetivo' ? '⚗ fusionar' : '⚗'"></button>
+                                    @click="clicFusion(g)" :disabled="cargando || (modoFusion(g) === 'objetivo' && talisman.esencia < costoFusion())"
+                                    :title="modoFusion(g) === 'objetivo' ? `fusionar estas dos en una n${g.nivel + 1} · cuesta ${costoFusion()} ✦${talisman.esencia < costoFusion() ? ' (sin esencia)' : ''}` : (modoFusion(g) === 'seleccionada' ? 'cancelar fusión' : 'fusionar: elegí el par')"
+                                    x-text="modoFusion(g) === 'objetivo' ? `⚗ fusionar · ${costoFusion()} ✦` : '⚗'"></button>
                                 <button class="mini-btn" @click="desguazar(g.id)" :class="{ enviando: accionActiva === `desguazar-${g.id}` }" :disabled="cargando" :title="`desguazar (+${g.nivel} esencia)`" x-text="`+${g.nivel}`"></button>
                             </div>
                         </div>
