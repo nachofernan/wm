@@ -5,17 +5,21 @@ namespace App\Game;
 /**
  * Gestión del talismán fuera de combate (docs/DECISIONES.md 018, cierra el
  * pendiente in-run): equipar (fieldear) y guardar gemas para armar el loadout,
- * desguazar una gema en esencia, y subir el cap con esa esencia. Es lógica pura
- * sobre el blob del talismán (arrays), sin HTTP ni DB — se testea sin levantarla
- * (CLAUDE.md, excepción de app/Game/).
+ * desguazar una gema en esencia, fusionar dos en una superior, y subir de nivel
+ * con esa esencia. Es lógica pura sobre el blob del talismán (arrays), sin HTTP
+ * ni DB — se testea sin levantarla (CLAUDE.md, excepción de app/Game/).
  *
- * Números de arranque (tuning). El cap es un tope sobre la SUMA de niveles de
- * las gemas fieldeadas (011): meter una gema alta puede obligar a sacar otra.
- * La refieldeada CON fricción durante el combate (011) queda para más adelante:
- * acá solo se reordena entre peleas.
+ * Números de arranque (tuning). Fieldear tiene DOS topes que conviven (025): la
+ * SUMA de niveles de las gemas fieldeadas no supera el cap (011), y el CONTEO de
+ * gemas fieldeadas no supera las ranuras. Con pocas gemas grandes ata el cap;
+ * con muchas chicas atan las ranuras. La refieldeada CON fricción durante el
+ * combate (011) queda para más adelante: acá solo se reordena entre peleas.
  */
 final class Talisman
 {
+    /** Tope de gemas fieldeadas a la vez (conteo, no suma de niveles) — 025. */
+    public const RANURAS = 6;
+
     /**
      * Progresión maestra (docs/DECISIONES.md 024): el nivel del talismán deriva
      * el cap y los stats base de la hoja de personaje (014). Números de arranque
@@ -41,16 +45,18 @@ final class Talisman
 
     /**
      * Aplica una acción y devuelve el talismán nuevo, o un error si la acción
-     * no es legal (no toca nada en ese caso).
+     * no es legal (no toca nada en ese caso). `$gemaId2` solo lo usa 'fusionar'
+     * (la segunda gema); el resto de las acciones lo ignoran.
      *
      * @return array{talisman: array, error: string|null}
      */
-    public static function aplicar(array $talisman, string $accion, ?int $gemaId): array
+    public static function aplicar(array $talisman, string $accion, ?int $gemaId, ?int $gemaId2 = null): array
     {
         return match ($accion) {
             'fieldear' => self::fieldear($talisman, $gemaId),
             'guardar' => self::guardar($talisman, $gemaId),
             'desguazar' => self::desguazar($talisman, $gemaId),
+            'fusionar' => self::fusionar($talisman, $gemaId, $gemaId2),
             'subirNivel' => self::subirNivel($talisman),
             'curar' => self::curar($talisman),
             default => self::error($talisman, 'acción desconocida'),
@@ -80,10 +86,12 @@ final class Talisman
 
     /**
      * Recalcula los stats derivados de la hoja desde el nivel del talismán y el
-     * acople de las gemas fieldeadas con esencia (modelo A, 024): fuego→ataque
-     * (multiplicador `ataqueMult`), agua→defensa (sumando al ratio, sobre la
-     * defensa base del nivel). aire→visión y tierra→memoria entran cuando esos
-     * stats existan (paso 3). Se llama tras cada mutación exitosa (ver ok()):
+     * acople de las gemas fieldeadas con esencia (modelo A, 024/025): eje
+     * ofensivo fuego+aire → ataque (multiplicador `ataqueMult`), eje defensivo
+     * agua+tierra → defensa (sumando al ratio, sobre la defensa base del nivel).
+     * El mapeo es interino (025): cuando existan visión y memoria, aire y tierra
+     * van a llevar esos stats y su aporte a atk/def probablemente se achique. Se
+     * llama tras cada mutación exitosa (ver ok()):
      * cap, defensa y ataqueMult son proyección cacheada en el blob, no fuente de
      * verdad. El `?? 1` tolera blobs viejos sin nivel (dev, runs desechables).
      */
@@ -97,9 +105,9 @@ final class Talisman
             if (! $g['fieldeada'] || $g['esencia'] <= 0) {
                 continue; // una gema inerte no potencia la hoja (012)
             }
-            if ($g['elemento'] === 'fuego') {
+            if ($g['elemento'] === 'fuego' || $g['elemento'] === 'aire') {
                 $ataqueGema += $g['nivel'] * self::ATK_POR_NIVEL;
-            } elseif ($g['elemento'] === 'agua') {
+            } elseif ($g['elemento'] === 'agua' || $g['elemento'] === 'tierra') {
                 $defensaGema += $g['nivel'] * self::DEF_POR_NIVEL_GEMA;
             }
         }
@@ -111,12 +119,15 @@ final class Talisman
         return $talisman;
     }
 
-    /** Equipar una gema del inventario, si entra en el cap. */
+    /** Equipar una gema del inventario, si hay ranura libre y entra en el cap (025). */
     private static function fieldear(array $talisman, ?int $id): array
     {
         $g = self::gema($talisman, $id);
         if ($g === null || $g['fieldeada']) {
             return self::error($talisman, 'gema inválida');
+        }
+        if (self::ranurasEnUso($talisman) >= self::RANURAS) {
+            return self::error($talisman, 'no hay ranura libre');
         }
         if (self::capEnUso($talisman) + $g['nivel'] > $talisman['cap']) {
             return self::error($talisman, 'no entra en el cap');
@@ -148,6 +159,42 @@ final class Talisman
         $talisman['gemas'] = array_values(array_filter(
             $talisman['gemas'], fn ($x) => $x['id'] !== $id,
         ));
+
+        return self::ok($talisman);
+    }
+
+    /**
+     * Fusiona dos gemas guardadas del mismo elemento y nivel en una de nivel+1
+     * (025): la esencia se suma, sin penalización ni techo de nivel. Solo entre
+     * gemas del inventario (no fieldeadas), como desguazar — es manejo de loadout
+     * entre peleas. La gema resultante nace guardada con un id fresco (proximoId).
+     */
+    private static function fusionar(array $talisman, ?int $idA, ?int $idB): array
+    {
+        if ($idA === null || $idB === null || $idA === $idB) {
+            return self::error($talisman, 'elegí dos gemas distintas');
+        }
+        $a = self::gema($talisman, $idA);
+        $b = self::gema($talisman, $idB);
+        if ($a === null || $b === null || $a['fieldeada'] || $b['fieldeada']) {
+            return self::error($talisman, 'gema inválida');
+        }
+        if ($a['elemento'] !== $b['elemento'] || $a['nivel'] !== $b['nivel']) {
+            return self::error($talisman, 'no coinciden tipo y nivel');
+        }
+
+        $nueva = [
+            'id' => $talisman['proximoId'],
+            'elemento' => $a['elemento'],
+            'nivel' => $a['nivel'] + 1,
+            'esencia' => $a['esencia'] + $b['esencia'],
+            'fieldeada' => false,
+        ];
+        $talisman['proximoId']++;
+        $talisman['gemas'] = array_values(array_filter(
+            $talisman['gemas'], fn ($x) => $x['id'] !== $idA && $x['id'] !== $idB,
+        ));
+        $talisman['gemas'][] = $nueva;
 
         return self::ok($talisman);
     }
@@ -190,7 +237,7 @@ final class Talisman
         return self::ok($talisman);
     }
 
-    /** Suma de niveles de las gemas fieldeadas. */
+    /** Suma de niveles de las gemas fieldeadas (tope: cap). */
     public static function capEnUso(array $talisman): int
     {
         $suma = 0;
@@ -201,6 +248,19 @@ final class Talisman
         }
 
         return $suma;
+    }
+
+    /** Cuántas gemas están fieldeadas (tope: RANURAS) — 025. */
+    public static function ranurasEnUso(array $talisman): int
+    {
+        $n = 0;
+        foreach ($talisman['gemas'] as $g) {
+            if ($g['fieldeada']) {
+                $n++;
+            }
+        }
+
+        return $n;
     }
 
     private static function gema(array $talisman, ?int $id): ?array

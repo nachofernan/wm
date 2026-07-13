@@ -154,24 +154,25 @@ class JugarController extends Controller
     }
 
     /**
-     * Gestión del talismán entre peleas (docs/DECISIONES.md 018): equipar,
-     * guardar, desguazar, subir cap. No se toca el loadout con un combate
-     * abierto — hay que resolverlo primero.
+     * Gestión del talismán entre peleas (docs/DECISIONES.md 018/025): equipar,
+     * guardar, desguazar, fusionar (usa `gemaId2`), subir nivel, curar. No se
+     * toca el loadout con un combate abierto — hay que resolverlo primero.
      */
     public function talisman(Request $request, string $token): JsonResponse
     {
         $run = Run::where('token', $token)->firstOrFail();
 
         $datos = $request->validate([
-            'accion' => 'required|in:fieldear,guardar,desguazar,subirNivel,curar',
+            'accion' => 'required|in:fieldear,guardar,desguazar,fusionar,subirNivel,curar',
             'gemaId' => 'nullable|integer',
+            'gemaId2' => 'nullable|integer',
         ]);
 
         if ($run->terminado || $run->combate !== null) {
             return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $res = Talisman::aplicar($run->talisman, $datos['accion'], $datos['gemaId'] ?? null);
+        $res = Talisman::aplicar($run->talisman, $datos['accion'], $datos['gemaId'] ?? null, $datos['gemaId2'] ?? null);
 
         if ($res['error'] !== null) {
             return response()->json(['ok' => false, 'motivo' => $res['error']], Response::HTTP_UNPROCESSABLE_ENTITY);

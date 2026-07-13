@@ -590,3 +590,45 @@ defensa aditiva caen naturalmente sobre la fórmula que ya existe.
 block por gema, tabla de tiradas, UI), profundidad antes de probar el loop—; seguir con el cap
 punto-a-punto (deuda de la 011 revertida por la 014); un `nivel` como tercer eje aparte del cap (se
 derivó del nivel, coherente con la 014).
+
+## 025 — Doble tope de fielding (cap + ranuras), fusionador de gemas, y las cuatro gemas potencian atk/def — 2026-07-12
+**Decisión:** Tres features sobre la hoja construida en la 024, para darle vida al sistema de gemas
+sin tocar la economía de fondo:
+
+- **Doble tope de fielding: cap Y ranuras conviven.** Fieldear una gema exige ahora dos condiciones:
+  que la **suma de niveles** fieldeados no supere el `cap` (011, presupuesto que crece con el nivel del
+  talismán) **y** que el **conteo** de gemas fieldeadas no supere las **ranuras** (constante `RANURAS = 6`,
+  fija por ahora, no escala con nivel). Con pocas gemas grandes ata el cap; con muchas chicas atan las
+  ranuras; la fusión empuja de un extremo al otro. Errores distintos: `no hay ranura libre` vs
+  `no entra en el cap` (la ranura se chequea primero). El cap sigue siendo el sustrato sobre el que va
+  a competir la visión (013/024, paso 3): por eso NO se reemplazó por un contador de slots.
+
+- **Fusionador.** Dos gemas **del mismo elemento y nivel** se funden en una de **nivel+1** con la
+  **esencia sumada** (ej.: fuego n3 con 10 es. + fuego n3 con 2 es. = fuego n4 con 12 es.). Sin
+  penalización y **sin techo de nivel** (queda abierto). Solo entre gemas **guardadas** (no fieldeadas),
+  como desguazar — es manejo de loadout entre peleas; la gema resultante nace guardada con un id fresco
+  (`proximoId`). Le da a una gema chica un tercer destino además de cargar/desguazar, y una decisión:
+  fundir por esencia ya, o guardar para fusionar y densificar. Bajo el cap suma-de-niveles, fusionar
+  **libera cap** (2×n3 suma 6 → 1×n4 suma 4) a cambio de **perder acople pasivo** (2 gemas de aporte → 1)
+  y una ranura menos ocupada: tradeoff elegido, no accidente.
+
+- **Las cuatro gemas potencian la hoja (eje ofensivo/defensivo interino).** `recomputar` acopla
+  **fuego + aire → ataque** y **agua + tierra → defensa** (reusando las constantes de la 024, sin números
+  nuevos). Hasta ahora aire y tierra se podían fieldear pero no aportaban nada a la hoja (solo pegaban
+  gema-a-gema): quedaban como peso muerto en la decisión de loadout. **Es interino y va a cambiar:** cuando
+  existan visión y memoria (024, paso 3), aire y tierra van a llevar esos stats y su aporte a atk/def
+  probablemente se achique para no ser doble función.
+
+**Cascada de stats iniciales:** al darle atk a aire y def a tierra, el mago inicial (fieldea las cuatro n3)
+pasa de ataque +15% / defensa 17 a **ataque +30% / defensa 26**. Esperado; reflejado en los tests.
+**Cascada técnica:** `Talisman::aplicar` gana un 4º parámetro opcional (`gemaId2`, solo lo usa fusionar);
+`JugarController` valida `fusionar` y `gemaId2`; `game.js` suma el flujo de fusión de dos toques
+(`fusionSel`/`modoFusion`) y el doble tope en `puedeFieldear`; la vista muestra `ranuras X/6` y un botón
+de fusión por fila del inventario.
+**Por qué:** las tres tocan la misma capa (loadout de gemas) y ninguna toca la economía de fondo
+(esencia como vida/poder, cap como presupuesto de visión). Todas agregan o afinan una decisión del jugador
+(CLAUDE.md: una feature que no cambia una decisión no se construye).
+**Se descartó:** reemplazar el cap suma-de-niveles por un contador de 6 slots (mata el sustrato de la
+visión); penalizar o poner techo a la fusión (por ahora sin fricción, se agrega si el loop lo pide);
+darle a aire/tierra su stat definitivo (visión/memoria) ahora (no existen como stats todavía — es el paso 3).
+Iniciativa/destreza → doble ataque queda aparcado hasta el manual de monstruos (depende de datos que no existen).

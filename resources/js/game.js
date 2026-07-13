@@ -38,6 +38,10 @@ const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaj
 // Radio de visión total alrededor del mago (Chebyshev). Fuera de acá está la niebla.
 const RADIO_VISION = 1;
 
+// Tope de gemas fieldeadas — espejo de Talisman::RANURAS (025). Fieldear valida
+// esto Y el cap (suma de niveles); acá se replica solo para el preview del botón.
+const RANURAS = 6;
+
 /** Relación del elemento a frente a b: 'ventaja' | 'reves' | 'neutral'. */
 function matchup(a, b) {
     if (VENCE_A[a] === b) return 'ventaja';
@@ -100,10 +104,12 @@ export function game() {
         // Filtro y orden del inventario, y orden de las fieldeadas (puro cliente,
         // no viaja al servidor). Mayores siempre arriba.
         filtroInv: null, // null = todos, o 'fuego'|'agua'|'tierra'|'aire'
+        fusionSel: null, // id de la 1ª gema elegida para fusionar (025), o null
         ordenInv: 'nivel', // 'nivel' | 'esencia' | 'elemento'
         ordenField: 'nivel', // idem para el talismán (fieldeadas): 'nivel' | 'esencia' | 'elemento'
         ordenFieldIds: [], // orden CONGELADO de las fieldeadas (ids); solo se recalcula al cambiar
                            // el select o el set fieldeado — nunca por un ataque que baje esencia
+        arrastrando: null, // id de la gema fieldeada que se está arrastrando, o null
 
         init() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
@@ -216,15 +222,28 @@ export function game() {
                 ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
             };
 
+            // Ícono centrado sobre la celda ya pintada (llave/candado): se nota
+            // qué es cada marca sin tener que recordar el color.
+            const icono = ({ x, y }, simbolo) => {
+                ctx.font = `${CELDA * 0.7}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(simbolo, x * CELDA + CELDA / 2, y * CELDA + CELDA / 2 + 1);
+            };
+
             pintar(this.marcas.entrada, COLOR_MARCA.entrada);
             pintar(this.marcas.salida, this.salidaAbierta ? COLOR_MARCA.salidaAbierta : COLOR_MARCA.salidaCerrada);
 
             this.marcas.puertas.forEach((p, i) => {
                 pintar(p, this.puertasAbiertas[i] ? COLOR_MARCA.puertaAbierta : COLOR_MARCA.puertaCerrada);
+                if (!this.puertasAbiertas[i]) icono(p, '🔒');
             });
 
             this.marcas.llaves.forEach((l, i) => {
-                if (!this.llavesRecogidas[i]) pintar(l, COLOR_MARCA.llave);
+                if (!this.llavesRecogidas[i]) {
+                    pintar(l, COLOR_MARCA.llave);
+                    icono(l, '🔑');
+                }
             });
         },
 
@@ -382,8 +401,8 @@ export function game() {
         bloquear(id) { this.accionCombate('bloquear', id); },
 
         // ── Talismán: armar el loadout entre peleas ────────────────────────
-        async accionTalisman(accion, gemaId = null) {
-            const datos = await this.pedir(`/jugar/${this.token}/talisman`, { accion, gemaId }, `${accion}-${gemaId ?? ''}`);
+        async accionTalisman(accion, gemaId = null, gemaId2 = null) {
+            const datos = await this.pedir(`/jugar/${this.token}/talisman`, { accion, gemaId, gemaId2 }, `${accion}-${gemaId ?? ''}`);
             if (!datos) return;
             this.aplicarEstado(datos.estado);
         },
@@ -393,7 +412,50 @@ export function game() {
         desguazar(id) { this.accionTalisman('desguazar', id); },
         subirNivel() { this.accionTalisman('subirNivel'); },
         curar() { this.accionTalisman('curar'); },
-        puedeFieldear(g) { return this.talisman && this.capEnUso() + g.nivel <= this.talisman.cap; },
+
+        // Fieldear valida ranura libre Y cap (025); el botón replica ambos topes.
+        puedeFieldear(g) {
+            return this.talisman
+                && this.fieldeadas().length < RANURAS
+                && this.capEnUso() + g.nivel <= this.talisman.cap;
+        },
+
+        // ── Fusión de gemas (025): dos del mismo tipo+nivel → una de nivel+1 ──
+        // Es un flujo de dos toques: elegir la primera (elegirFusion) y después
+        // tocar el "fusionar" de un par compatible. Solo entre gemas guardadas.
+        elegirFusion(id) { this.fusionSel = this.fusionSel === id ? null : id; },
+
+        fusionar(idB) {
+            const idA = this.fusionSel;
+            this.fusionSel = null;
+            this.accionTalisman('fusionar', idA, idB);
+        },
+
+        // ¿g puede fusionarse con la seleccionada? mismo tipo y nivel, otra gema.
+        fusionable(g) {
+            if (this.fusionSel === null) return false;
+            const a = this.inventario().find((x) => x.id === this.fusionSel);
+            return !!a && a.id !== g.id && a.elemento === g.elemento && a.nivel === g.nivel;
+        },
+
+        // ¿Existe en el inventario alguna gema con la que g pueda fusionarse?
+        tienePar(g) {
+            return this.inventario().some((x) => x.id !== g.id && x.elemento === g.elemento && x.nivel === g.nivel);
+        },
+
+        // Estado del botón de fusión de g: 'elegir' (hay par, nada seleccionado),
+        // 'seleccionada' (es la 1ª elegida), 'objetivo' (par válido de la elegida),
+        // 'oculto' (no aplica). Lo usa la vista para pintar un solo botón.
+        modoFusion(g) {
+            if (this.fusionSel === null) return this.tienePar(g) ? 'elegir' : 'oculto';
+            if (this.fusionSel === g.id) return 'seleccionada';
+            return this.fusionable(g) ? 'objetivo' : 'oculto';
+        },
+
+        clicFusion(g) {
+            if (this.modoFusion(g) === 'objetivo') this.fusionar(g.id);
+            else this.elegirFusion(g.id);
+        },
 
         // Esencia para subir de nivel — espejo de Talisman::costoNivel (024): nivel × COSTO_NIVEL.
         costoNivel() { return this.talisman ? this.talisman.nivel * 10 : 0; },
@@ -443,6 +505,22 @@ export function game() {
                 return i === -1 ? Infinity : i;
             };
             return [...this.fieldeadas()].sort((a, b) => pos(a.id) - pos(b.id));
+        },
+
+        // Drag-and-drop manual de las fieldeadas: mover una gema a la posición de
+        // otra reescribe el orden congelado directamente (mismo mecanismo que el
+        // select, pero a mano). Solo cliente, no viaja al servidor.
+        iniciarArrastre(id) { this.arrastrando = id; },
+        terminarArrastre() { this.arrastrando = null; },
+        reordenarManual(idArrastrado, idDestino) {
+            if (idArrastrado === null || idArrastrado === idDestino) return;
+            const orden = this.fieldeadasMostradas().map((g) => g.id);
+            const desde = orden.indexOf(idArrastrado);
+            const hasta = orden.indexOf(idDestino);
+            if (desde === -1 || hasta === -1) return;
+            orden.splice(desde, 1);
+            orden.splice(hasta, 0, idArrastrado);
+            this.ordenFieldIds = orden;
         },
 
         // Cuántas gemas de cada elemento hay en el inventario (para los chips de filtro).
