@@ -108,6 +108,40 @@ test('iniciar con encuentro de ambiente (sin elemento) sortea uno determinista',
     expect($a['monstruo']['elemento'])->toBe($b['monstruo']['elemento']); // determinista
 });
 
+test('el elemento de un encuentro de ambiente no queda atado al dado de disparo: no es siempre fuego (031)', function () {
+    // Regresión del sesgo de fuego. El dado de disparo (cliente, 022) y el sorteo
+    // de elemento (servidor) comparten semilla. Si el elemento saliera del PRIMER
+    // output —el mismo que el dado— una celda de ambiente (prob=1) dispararía solo
+    // con first%100==0, que por 100=4×25 fuerza first%4==0 → siempre fuego. Acá
+    // sorteo el elemento SOLO en las semillas que de hecho disparan y exijo que
+    // aparezcan los cuatro sin que ninguno acapare.
+    $conteo = ['fuego' => 0, 'agua' => 0, 'tierra' => 0, 'aire' => 0];
+
+    foreach ([42, 1, 7, 12345, 999] as $seed) {
+        for ($x = 0; $x < 30; $x++) {
+            for ($y = 0; $y < 30; $y++) {
+                for ($pasos = 0; $pasos < 200; $pasos++) {
+                    $semilla = ($seed ^ ($x * 73856093) ^ ($y * 19349663) ^ ($pasos * 83492791)) & 0xFFFFFFFF;
+                    if ((new App\Game\Prng($semilla))->next() % 100 >= 1) {
+                        continue; // el encuentro de ambiente no dispara en esta semilla
+                    }
+                    $c = MazeCombate::iniciar($seed, $x, $y, null, 1, $pasos);
+                    $conteo[$c['monstruo']['elemento']]++;
+                }
+            }
+        }
+    }
+
+    // Antes del fix: fuego 100% / resto 0. Ahora los cuatro salen y el reparto es
+    // ~uniforme (margen amplio: es muestreo, no una prueba de uniformidad estricta).
+    $total = array_sum($conteo);
+    expect($total)->toBeGreaterThan(1000); // hubo encuentros de sobra
+    foreach ($conteo as $n) {
+        expect($n)->toBeGreaterThan(0);       // ningún elemento queda en cero
+        expect($n / $total)->toBeLessThan(0.40); // ninguno domina como antes fuego
+    }
+});
+
 test('atacar baja la vida del monstruo, gasta carga y pasa a defensa', function () {
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 5, 'carga' => 20, 'fieldeada' => true]);
     $combate = MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0);

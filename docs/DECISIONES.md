@@ -817,3 +817,23 @@ economía del bloqueo — si el bicho ya arremetió, primero se paga ese golpe);
 de con esencia (sin costo no es una decisión); que huir consuma/mate la colmena (rompería el modelo de colmena
 persistente de 016). Números de arranque: `coefDestreza = 2 − coefPeso`, costo `round(destreza × nivel)` con piso
 1; se ajustan jugando.
+
+## 031 — El elemento del encuentro de ambiente no puede derivar del dado de disparo — 2026-07-13
+**Decisión:** El sorteo del elemento de un monstruo de ambiente (celda sin colmena, `elem = null`) avanza el PRNG
+un paso antes de tirar: se descarta el primer output de la semilla de combate y el elemento sale del segundo
+`[IMPLEMENTADO]`.
+
+**Por qué:** Bug real, no percepción. El dado de disparo del encuentro (cliente, DECISIÓN 022) y el sorteo del
+elemento (servidor) reconstruyen la **misma** semilla `seed ^ x·C1 ^ y·C2 ^ pasos·C3` y ambos consumían el
+**primer** output de `Prng(semilla)`. Una celda de ambiente tiene `prob = 1`, así que el encuentro solo dispara
+cuando `first % 100 == 0`; y como `100 = 4×25`, todo múltiplo de 100 es múltiplo de 4, con lo cual `first % 4 == 0`
+siempre → `ELEMENTOS[0]` → **fuego, el 100% de las veces**. Medido: 8944 encuentros de ambiente sobre 5 seeds,
+todos fuego. Las colmenas no lo mostraban porque ahí el elemento viene fijado por el núcleo y el sorteo ni corre;
+el sesgo vivía solo en las celdas de ambiente, que son las únicas que sortean. Quemar el primer output desacopla
+el elemento de la condición de disparo y devuelve el reparto ~uniforme entre los cuatro. No toca la paridad
+PHP/JS: el cliente nunca calcula el elemento, lo recibe en la respuesta del servidor; el generador y el hash del
+laberinto quedan intactos.
+**Se descartó:** derivar el elemento de una semilla aparte con otra constante de mezcla (funciona, pero avanzar
+un paso es más simple y auto-documenta el acople con el dado); bajar el `prob` de ambiente o cambiar el módulo
+del dado (parches al síntoma que dejaban el acople latente para el próximo par de números coprimos que no lo
+fueran).

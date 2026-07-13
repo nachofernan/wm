@@ -85,6 +85,12 @@ final class MazeCombate
         $semilla = ($seed ^ ($x * 73856093) ^ ($y * 19349663) ^ ($indice * 83492791)) & 0xFFFFFFFF;
         $prng = new Prng($semilla);
 
+        // El dado de disparo del encuentro (cliente, DECISIÓN 022) se juega el PRIMER
+        // output de esta MISMA semilla. Si el elemento saliera de él, quedaría atado a
+        // la condición de disparo: en una celda de ambiente (prob=1) el encuentro solo
+        // salta cuando first%100==0, y como 100=4×25 eso fuerza first%4==0 → siempre
+        // fuego (DECISIÓN 031). Se quema el primer output y el elemento sale del segundo.
+        $prng->next();
         $elem ??= EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
         $base = self::ARQUETIPOS[$elem];
 
