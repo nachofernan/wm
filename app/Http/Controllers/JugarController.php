@@ -109,6 +109,63 @@ class JugarController extends Controller
     }
 
     /**
+     * Guardián de una llave o de la salida (docs/DECISIONES.md 032). El combate es
+     * telegrafiado y sin escape: el encuentro se REVELA antes de comprometerse, así
+     * el jugador setea el talismán en un staging seguro (con el combate cerrado, el
+     * endpoint de talismán sigue disponible) y recién ahí pelea.
+     *
+     *  - `pelear` ausente o false: revela el guardián (stats telegrafiadas) sin
+     *    abrir combate ni persistir nada. Es el staging.
+     *  - `pelear` true: abre el combate boss y lo persiste.
+     *
+     * La posición se valida contra el seed (axioma 4): la celda reportada tiene que
+     * ser la de esta marca (la llave del índice, o la salida). El bicho lo deriva
+     * MazeCombate::guardian del seed — nivel fijo por índice, el cliente no decide.
+     */
+    public function guardian(Request $request, string $token): JsonResponse
+    {
+        $run = Run::where('token', $token)->firstOrFail();
+
+        $datos = $request->validate([
+            'indice' => 'required|integer|min:0|max:'.MazeCombate::INDICE_SALIDA,
+            'x' => 'required|integer|min:0',
+            'y' => 'required|integer|min:0',
+            'pelear' => 'boolean',
+        ]);
+
+        if ($run->terminado) {
+            return response()->json(['ok' => false, 'motivo' => 'terminada'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($run->combate !== null) {
+            return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $indice = $datos['indice'];
+        if ($indice !== MazeCombate::INDICE_SALIDA && in_array($indice, $run->llaves ?? [], true)) {
+            return response()->json(['ok' => false, 'motivo' => 'llave ya conseguida'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
+        $marcas = MapaBuilder::marcas($matriz);
+        $celda = $indice === MazeCombate::INDICE_SALIDA ? $marcas['salida'] : $marcas['llaves'][$indice];
+        if ($celda === null || $celda['x'] !== $datos['x'] || $celda['y'] !== $datos['y']) {
+            return response()->json(['ok' => false, 'motivo' => 'no es la celda del guardián'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $combate = MazeCombate::guardian($run->seed, $indice, $datos['x'], $datos['y']);
+
+        if (! ($datos['pelear'] ?? false)) {
+            // Solo revelar: telegrafía el guardián para el staging, no abre combate.
+            return response()->json(['ok' => true, 'guardian' => $combate['monstruo']]);
+        }
+
+        $run->update(['pos_x' => $datos['x'], 'pos_y' => $datos['y'], 'combate' => $combate]);
+        $run->events()->create(['tipo' => 'guardian', 'payload' => ['indice' => $indice]]);
+
+        return response()->json(['ok' => true, 'estado' => $this->estado($run)]);
+    }
+
+    /**
      * Resuelve una acción del combate activo (docs/DECISIONES.md 018). Toda la
      * verdad de combate vive en el servidor (axioma 4): el cliente manda la
      * acción y recibe el estado nuevo. La resolución la hace MazeCombate con
@@ -137,7 +194,18 @@ class JugarController extends Controller
         $run->combate = $res['combate'];
 
         if ($res['resultado'] === 'victoria') {
-            $run->events()->create(['tipo' => 'combate_ganado', 'payload' => ['drop' => $res['drop']]]);
+            $llave = $res['llave'] ?? null;
+            if ($llave === MazeCombate::INDICE_SALIDA) {
+                // Guardián de la salida caído (032): victoria final, la corrida termina.
+                $run->events()->create(['tipo' => 'ganado', 'payload' => ['drop' => $res['drop']]]);
+                $run->terminado = true;
+            } elseif ($llave !== null) {
+                // Guardián de llave caído (032): se graba la llave del índice.
+                $run->llaves = array_values(array_unique([...($run->llaves ?? []), $llave]));
+                $run->events()->create(['tipo' => 'llave', 'payload' => ['indice' => $llave, 'drop' => $res['drop']]]);
+            } else {
+                $run->events()->create(['tipo' => 'combate_ganado', 'payload' => ['drop' => $res['drop']]]);
+            }
         } elseif ($res['resultado'] === 'derrota') {
             // Sin revividas todavía (docs/DISENO.md §4): la derrota termina la
             // partida. Placeholder hasta que se construya el reset/revivida.
@@ -206,7 +274,7 @@ class JugarController extends Controller
             ];
         }
 
-        return ['talisman' => $run->talisman, 'combate' => $combate];
+        return ['talisman' => $run->talisman, 'combate' => $combate, 'llaves' => $run->llaves ?? []];
     }
 
     /**

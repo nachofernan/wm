@@ -24,12 +24,14 @@ class Run extends Model
         'semilla_secreta',
         'talisman',
         'combate',
+        'llaves',
     ];
 
     protected $casts = [
         'terminado' => 'boolean',
         'talisman' => 'array',
         'combate' => 'array',
+        'llaves' => 'array',
     ];
 
     public function events(): HasMany

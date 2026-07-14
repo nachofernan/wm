@@ -64,6 +64,7 @@ Route::post('/pj/combate', function (Request $request) {
 
 Route::get('/jugar/{token}', [JugarController::class, 'mostrar'])->name('jugar.mostrar');
 Route::post('/jugar/{token}/encuentro', [JugarController::class, 'encuentro'])->name('jugar.encuentro');
+Route::post('/jugar/{token}/guardian', [JugarController::class, 'guardian'])->name('jugar.guardian');
 Route::post('/jugar/{token}/combate', [JugarController::class, 'combate'])->name('jugar.combate');
 Route::post('/jugar/{token}/talisman', [JugarController::class, 'talisman'])->name('jugar.talisman');
 Route::post('/jugar/{token}/salir', [JugarController::class, 'salir'])->name('jugar.salir');

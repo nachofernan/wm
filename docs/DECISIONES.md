@@ -837,3 +837,49 @@ laberinto quedan intactos.
 un paso es más simple y auto-documenta el acople con el dado); bajar el `prob` de ambiente o cambiar el módulo
 del dado (parches al síntoma que dejaban el acople latente para el próximo par de números coprimos que no lo
 fueran).
+
+## 032 — Las llaves son bosses telegrafiados sin escape; la cadena de puertas cierra el loop del maze — 2026-07-13
+**Decisión:** Cierra §7 (llave y salida) de DISENO y le da la primera forma concreta a §4 (salir con algo).
+El maze deja de ser un campo de farmeo sin objetivo y pasa a ser una cadena lock-and-key con guardianes.
+
+- **Cadena lineal de tres llaves y tres puertas.** llave1 abre la puerta a distancia 100, llave2 la de
+  distancia 200, llave3 abre la salida. Sin la llave del tramo no se cruza su puerta: el maze queda partido
+  en tres cámaras que se recorren en orden. **La colocación YA EXISTE en `MapaBuilder`** (`PUERTAS_EN=[100,200]`,
+  una llave por segmento), determinista y paritaria — **no se toca el generador, no hay cascada**. Lo nuevo es
+  el gate en runtime (la puerta bloquea el paso sin la llave) y el mapeo llave3→salida (hoy la tercera llave no
+  abre nada).
+
+- **Cada llave la guarda un boss telegrafiado, sin escape.** Al entrar a la celda de la llave se revela el
+  guardián (nombre, elemento, nivel, stats) con el combate todavía cerrado: es un **staging seguro** donde
+  reordenás el talismán. Recién al apretar "pelear" arranca el combate, y ahí **no hay escape** (a diferencia de
+  los encuentros de ambiente, 030): o lo matás o te mata. Solo matándolo cae la llave. Podés entrar, verlo y
+  **no** pelear — comprometerse es opt-in, pero irreversible una vez iniciado.
+
+- **Nivel fijo por índice de llave: 3 / 5 / 7.** Overridea la rampa por distancia (029, que deriva el nivel de
+  `t`): el guardián es un **tier fijo**, no ambiente. Los 3/5/7 son la curva de la 029 muestreada en tercios
+  (t=1/3→N3, 2/3→N5, 1→N7), así que no son arbitrarios; se fijan por índice como arranque (se pueden derivar del
+  `t` de la puerta si las distancias dejan de ser 100/200). El guardián es un **arquetipo elemental escalado y
+  telegrafiado**, no un statblock propio — eso queda para el compendio con la historia.
+
+- **Boss final N9 en la salida.** Además de las tres llaves, la salida tiene su propio guardián a **N9** —
+  deliberadamente por encima del techo 1..7 de gemas y monstruos. No se gana out-levelándolo (el jugador topa en
+  ~N7): se gana por **matchup elemental + carga**, apoyado en el daño por ratio (012, "el alfeñique siempre
+  araña"). Es el clímax del maze.
+
+- **Perder contra un boss = muerte = mapa nuevo.** Sin escape y sin red: perder cualquier boss termina la
+  corrida y resetea a un maze nuevo (coherente con 011, "la muerte resetea el maze"). Las **revividas** (§4)
+  quedan para después; hoy la derrota es game over. Ganar el boss final y salir = **victoria** (salir con algo:
+  el botín acumulado).
+
+**Por qué:** El combate (024–031) estaba construido con profundidad pero sin objetivo — un verbo sin oración. La
+cadena de llaves-boss le da a la corrida un para-qué (§4) **reusando la colocación que `MapaBuilder` ya producía**.
+Los guardianes telegrafiados sin escape son la forma más pura del pilar de planificación (§2): cuatro peleas,
+cuatro contras distintas, reseteás el talismán en cada staging. Cuando se apague la niebla (014/016), las tres
+cámaras encadenadas se vuelven tres mazes difíciles unidos.
+**Se descartó:** llaves dispersas/opcionales (se eligió la cadena lineal, stakes firmes); statblocks de boss
+propios ahora (arquetipos escalados como arranque; compendio después); derivar el nivel del boss del `t` de la
+celda de la llave (da números sucios; se fija por índice); permitir escape en los bosses (rompería el "commit
+total"); revividas antes del boss (game-over como placeholder). **Cascada:** ninguna en el generador — la
+colocación ya existe y es paritaria. El trabajo es gameplay: gate de puertas en el cliente (movimiento, 022),
+combate de boss en el servidor (`MazeCombate`/controller, autoridad — axioma 4), y el set de llaves en la caché
+`runs` (proyección, axioma 5). Números de arranque: niveles 3/5/7/9.

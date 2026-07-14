@@ -193,3 +193,94 @@ test('salir es ilegal si la partida ya había terminado', function () {
     $response->assertStatus(422)->assertJson(['legal' => false]);
     expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
 });
+
+// --- Guardianes de llave y salida (DECISIÓN 032) ---
+// seed 42, 30x30: llave 0 en (11,1), salida en (14,25) — ver MapaBuilderTest.
+
+test('guardian sin pelear revela el telegraph pero no abre combate ni persiste (032)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/guardian", ['indice' => 0, 'x' => 11, 'y' => 1]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('guardian.boss'))->toBeTrue();
+    expect($response->json('guardian.nivel'))->toBe(3); // llave 0 → N3
+    // Staging: no persiste nada, el talismán sigue disponible.
+    expect($run->fresh()->combate)->toBeNull();
+    expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
+});
+
+test('guardian con pelear abre el combate boss y lo persiste (032)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/guardian", ['indice' => 0, 'x' => 11, 'y' => 1, 'pelear' => true]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('estado.combate.monstruo.boss'))->toBeTrue();
+    expect($run->fresh()->combate)->not->toBeNull();
+    expect(Event::where('run_id', $run->id)->where('tipo', 'guardian')->exists())->toBeTrue();
+});
+
+test('guardian en una celda que no es la de la marca es ilegal (032)', function () {
+    $run = Run::create(['token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30]);
+
+    $response = $this->postJson("/jugar/{$run->token}/guardian", ['indice' => 0, 'x' => 0, 'y' => 0]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'no es la celda del guardián']);
+    expect($run->fresh()->combate)->toBeNull();
+});
+
+test('guardian de una llave ya conseguida es ilegal (032)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30, 'llaves' => [0],
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/guardian", ['indice' => 0, 'x' => 11, 'y' => 1]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'llave ya conseguida']);
+});
+
+test('matar al guardián de una llave graba la llave y registra el evento, sin terminar la corrida (032)', function () {
+    // Gema descomunal: un golpe letal cierra el combate del guardián de llave (N3).
+    $talisman = MazeCombate::talismanInicial();
+    $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 999999, 'fieldeada' => true]];
+    $combate = MazeCombate::guardian(42, 0, 11, 1); // llave 0 → N3
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => $talisman, 'combate' => $combate,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 99]);
+
+    $response->assertOk()->assertJson(['ok' => true, 'resultado' => 'victoria']);
+    $run->refresh();
+    expect($run->llaves)->toBe([0]);      // se grabó la llave
+    expect($run->terminado)->toBeFalse(); // una llave no termina la corrida
+    expect($run->combate)->toBeNull();
+    $evento = Event::where('run_id', $run->id)->where('tipo', 'llave')->first();
+    expect($evento->payload['indice'])->toBe(0);
+});
+
+test('matar al guardián de la salida (N9) termina la partida como victoria (032)', function () {
+    $talisman = MazeCombate::talismanInicial();
+    $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 999999, 'fieldeada' => true]];
+    $combate = MazeCombate::guardian(42, MazeCombate::INDICE_SALIDA, 14, 25); // salida → N9
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => $talisman, 'combate' => $combate,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 99]);
+
+    $response->assertOk()->assertJson(['ok' => true, 'resultado' => 'victoria']);
+    $run->refresh();
+    expect($run->terminado)->toBeTrue();               // la victoria final termina la corrida
+    expect($run->llaves ?? [])->toBe([]);              // la salida no deja una llave
+    expect(Event::where('run_id', $run->id)->where('tipo', 'ganado')->exists())->toBeTrue();
+});

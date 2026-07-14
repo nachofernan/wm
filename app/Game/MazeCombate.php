@@ -121,6 +121,69 @@ final class MazeCombate
         ];
     }
 
+    /** Cuántas llaves (guardianes de llave) tiene el maze: índices 0..2 (DECISIÓN 032). */
+    public const CANT_LLAVES = 3;
+
+    /** El índice del guardián de la salida (no deja llave: vencerlo es la victoria final). */
+    public const INDICE_SALIDA = 3;
+
+    /**
+     * Niveles fijos de los guardianes por índice (DECISIÓN 032): las tres llaves
+     * a 3/5/7 (la rampa de la 029 muestreada en tercios: t=1/3→N3, 2/3→N5, 1→N7)
+     * y la salida a 9 — deliberadamente por encima del techo 1..7 de gemas y
+     * monstruos: se gana por matchup + carga, no out-levelándolo.
+     */
+    private const NIVELES_GUARDIAN = [3, 5, 7, 9];
+
+    /**
+     * Arma el guardián telegrafiado de una llave (índice 0..2) o de la salida
+     * (índice 3), DECISIÓN 032. A diferencia de un encuentro de ambiente, el
+     * nivel es FIJO por índice (no sale de la distancia, 029) y NO hay escape
+     * (`escape` null, y `resolver` rechaza 'escapar'): o lo matás o te mata. El
+     * arquetipo es elemental escalado a ese nivel, telegrafiado; el elemento sale
+     * del seed (determinista, pero solo lo consume el servidor — axioma 4). La
+     * semilla de combate se deriva de (seed, índice) y nunca viaja al cliente. Al
+     * morir (victoriaBoss) otorga la llave; perder = derrota = mapa nuevo, sin red.
+     *
+     * @return array combate, misma forma que iniciar() con boss:true e indice.
+     */
+    public static function guardian(int $seed, int $indice, int $x, int $y): array
+    {
+        $semilla = ($seed ^ ($indice * 0x9E3779B1) ^ 0x6A09E667) & 0xFFFFFFFF;
+        $prng = new Prng($semilla);
+
+        $elem = EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
+        $base = self::ARQUETIPOS[$elem];
+
+        $nivel = self::NIVELES_GUARDIAN[$indice];
+        $factor = 1 + ($nivel - 1) / 6; // misma rampa que un bicho de ese nivel (029)
+        $vida = (int) round($base['vida'] * $factor);
+
+        return [
+            'x' => $x,
+            'y' => $y,
+            't' => 1.0,
+            'monstruo' => [
+                'nombre' => $base['nombre'],
+                'elemento' => $elem,
+                'nivel' => $nivel,
+                'vida' => $vida,
+                'vidaMax' => $vida,
+                'defensa' => (int) round($base['defensa'] * $factor),
+                'peso' => (int) round($base['coefPeso'] * $nivel),
+                'escape' => null,
+                'boss' => true,
+                'indice' => $indice,
+                'dificultad' => $base['dificultad'],
+            ],
+            'turno' => 'tuTurno',
+            'entrante' => null,
+            'semilla' => $semilla,
+            'paso' => 1, // el 0 lo consumió la derivación del elemento
+            'resultado' => null,
+        ];
+    }
+
     /**
      * Resuelve una acción de combate y devuelve el estado nuevo. Acciones:
      * 'atacar' (gemaId), 'bloquear' (gemaId) y 'escapar'. El combate vuelve null
@@ -226,6 +289,9 @@ final class MazeCombate
             if ($combate['turno'] !== 'tuTurno') {
                 return $error('no es tu turno');
             }
+            if ($combate['monstruo']['boss'] ?? false) {
+                return $error('no se puede escapar de un guardián');
+            }
             $costo = $combate['monstruo']['escape'];
             if ($talisman['esencia'] < $costo) {
                 return $error('esencia insuficiente para escapar');
@@ -274,6 +340,10 @@ final class MazeCombate
      */
     private static function victoria(array $combate, array $talisman, array $log): array
     {
+        if ($combate['monstruo']['boss'] ?? false) {
+            return self::victoriaBoss($combate, $talisman, $log);
+        }
+
         $dificultad = $combate['monstruo']['dificultad'];
         $t = $combate['t'] ?? 0.0;
         $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
@@ -295,6 +365,43 @@ final class MazeCombate
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
             'drop' => $drops, 'error' => null, 'log' => $log,
+        ];
+    }
+
+    /**
+     * Muerte de un guardián (DECISIÓN 032): otorga la llave de su índice y suelta
+     * UNA gema garantizada (§6, los bosses garantizan gema importante), de nivel
+     * atado al del guardián y topeado en 7 (el techo de gema del jugador). El
+     * índice viaja en `llave` para que el controlador registre la llave — o, en el
+     * índice de la salida (3), la victoria final. El elemento del botín se pesa por
+     * la afinidad del guardián (026), como cualquier drop.
+     */
+    private static function victoriaBoss(array $combate, array $talisman, array $log): array
+    {
+        $m = $combate['monstruo'];
+        $prng = new Prng(($combate['semilla'] + $combate['paso']++) & 0xFFFFFFFF);
+
+        $nivel = min($m['nivel'], 7);
+        $gema = [
+            'id' => $talisman['proximoId'],
+            'elemento' => self::elementoDrop($prng, $m['elemento']),
+            'nivel' => $nivel,
+            'carga' => $nivel * Talisman::CARGA_POR_NIVEL,
+            'fieldeada' => false,
+        ];
+        $talisman['gemas'][] = $gema;
+        $talisman['proximoId']++;
+        $talisman['gemasJuntadas']++;
+        $talisman['bichosCaidos']++;
+
+        $premio = $m['indice'] === count(self::NIVELES_GUARDIAN) - 1
+            ? 'el camino a la salida queda libre'
+            : 'conseguís la llave';
+        $log[] = ['txt' => "¡cae {$m['nombre']}! {$premio} y dropea {$gema['elemento']} n{$gema['nivel']} → al inventario", 'crit' => false];
+
+        return [
+            'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
+            'drop' => [$gema], 'llave' => $m['indice'], 'error' => null, 'log' => $log,
         ];
     }
 
