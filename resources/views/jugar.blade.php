@@ -245,7 +245,32 @@
                  de "modelo" lista para ponerle imagen. Es también la pantalla de
                  cierre (030): victoria/derrota/salida se muestran acá mismo, con el
                  botín y el botón de reiniciar, en vez de una card en otra columna. -->
-            <div class="combate-flotante" x-show="combate || resultado || terminado" x-cloak>
+            <div class="combate-flotante" x-show="combate || guardian || resultado || terminado" x-cloak>
+                <!-- Staging del guardián (032): se ve el boss con el combate cerrado.
+                     El talismán sigue editable (otra columna); recién al "pelear" se
+                     abre el combate — y ahí no hay escape. -->
+                <template x-if="guardian && !combate">
+                    <div class="modelo">
+                        <div class="modelo-fig" :class="guardian.elemento" x-text="guardian.nombre.charAt(0)"></div>
+                        <div class="final-titulo" style="color: gold" x-text="guardian.indice === 3 ? 'Guardián de la salida' : 'Guardián de la llave'"></div>
+                        <div class="modelo-nombre" x-text="guardian.nombre"></div>
+                        <div class="modelo-sub">
+                            <span class="punto" :class="guardian.elemento"></span>
+                            <span x-text="guardian.elemento"></span> · <span x-text="`N${guardian.nivel}`"></span>
+                        </div>
+                        <div class="modelo-stats">
+                            <span x-text="`${guardian.vida} ♥`"></span>
+                            <span x-text="`def ${guardian.defensa}`"></span>
+                            <span x-text="`peso ${guardian.peso}`"></span>
+                        </div>
+                        <div class="modelo-hint">armá el talismán — al pelear no hay escape</div>
+                        <div class="modelo-acciones" style="gap:10px">
+                            <button class="primario" @click="pelearGuardian()" :class="{ enviando: accionActiva === 'pelear' }" :disabled="cargando">pelear</button>
+                            <button @click="retirarseGuardian()" :disabled="cargando">retirarse</button>
+                        </div>
+                    </div>
+                </template>
+
                 <!-- Combate activo: la maqueta + escape en tu turno -->
                 <template x-if="combate">
                     <div class="modelo">
@@ -262,7 +287,9 @@
                             <span x-text="`peso ${combate.monstruo.peso}`"></span>
                         </div>
                         <div class="modelo-hint" x-show="combate.turno === 'defensa'">arremete — bloqueá con una gema</div>
-                        <div class="modelo-acciones" x-show="combate.turno === 'tuTurno'">
+                        <!-- Sin escape contra un guardián (032): el botón solo existe
+                             si el bicho lo permite (escape numérico; null en un boss). -->
+                        <div class="modelo-acciones" x-show="combate.turno === 'tuTurno' && combate.monstruo.escape">
                             <button class="mini-btn escape" @click="escapar()" :class="{ enviando: accionActiva === 'escapar-' }"
                                 :disabled="cargando || talisman.esencia < combate.monstruo.escape"
                                 :title="talisman.esencia < combate.monstruo.escape ? `te faltan ${combate.monstruo.escape - talisman.esencia} ✦ para escapar` : `escapar del combate (−${combate.monstruo.escape} ✦)`"
@@ -271,8 +298,9 @@
                     </div>
                 </template>
 
-                <!-- Victoria: el bicho caído + el botín + seguir -->
-                <template x-if="!combate && resultado === 'victoria'">
+                <!-- Victoria de combate normal o de guardián de llave: seguís jugando.
+                     Si fue un guardián (boss), además conseguiste su llave (032). -->
+                <template x-if="!combate && resultado === 'victoria' && !terminado">
                     <div class="modelo">
                         <div class="modelo-fig" :class="bichoResuelto?.elemento" x-text="bichoResuelto ? bichoResuelto.nombre.charAt(0) : ''"></div>
                         <div class="final-titulo victoria">¡Cayó!</div>
@@ -281,6 +309,7 @@
                             <span class="punto" :class="bichoResuelto?.elemento"></span>
                             <span x-text="bichoResuelto?.elemento"></span> · <span x-text="bichoResuelto ? `N${bichoResuelto.nivel}` : ''"></span>
                         </div>
+                        <div class="modelo-hint" style="color: gold" x-show="bichoResuelto?.boss">conseguiste la llave 🔑</div>
                         <div class="botin" x-show="drop && drop.length">
                             <div class="botin-cab" x-text="drop && drop.length > 1 ? `Botín · ${drop.length} piedras` : 'Botín'"></div>
                             <template x-for="d in (drop || [])" :key="d.id">
@@ -291,6 +320,26 @@
                         </div>
                         <div class="modelo-acciones">
                             <button class="primario" @click="seguir()">seguir</button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Victoria final: venciste al guardián de la salida (032). La corrida
+                     terminó con el botín acumulado — salir con algo (§4). -->
+                <template x-if="!combate && resultado === 'victoria' && terminado">
+                    <div class="modelo">
+                        <div class="final-titulo victoria">¡Ganaste el laberinto!</div>
+                        <div class="modelo-sub" style="margin-bottom:10px">venciste al guardián de la salida</div>
+                        <div class="botin" x-show="drop && drop.length">
+                            <div class="botin-cab">Botín final</div>
+                            <template x-for="d in (drop || [])" :key="d.id">
+                                <div class="botin-gema" :class="d.elemento">
+                                    <span class="punto" :class="d.elemento"></span><span x-text="d.elemento"></span> <span class="valor" x-text="`n${d.nivel}`"></span>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="modelo-acciones">
+                            <a href="{{ route('jugar.crear') }}"><button class="primario">nueva partida</button></a>
                         </div>
                     </div>
                 </template>

@@ -46,6 +46,12 @@ const RANURAS = 6;
 // solo deshabilita el botón cuando no alcanza; el servidor valida de verdad.
 const COSTO_FUSION = 1;
 
+// Índice del guardián de la salida (docs/DECISIONES.md 032) — espejo de
+// MazeCombate::INDICE_SALIDA. Los guardianes de llave usan el índice de su llave
+// (0..2); la salida, el 3. La llave que abre la salida es la que sobra (índice =
+// cantidad de puertas), distinta del guardián que la custodia.
+const INDICE_SALIDA = 3;
+
 // Tope de carga por nivel y costo de recarga — espejo de Talisman (026/028). El
 // tope de una gema es nivel × 6; recargarla al tope cuesta nivel × 1 de esencia.
 const CARGA_POR_NIVEL = 6;
@@ -75,9 +81,11 @@ const TECLAS = {
  * que manda el servidor (window.__MAZE__) y lo mantiene en memoria — nunca
  * viaja por la red. Ver CLAUDE.md, axioma 1 y 3.
  *
- * Cada llave abre la puerta de su mismo índice (llave 0 → puerta 0, etc.);
- * la última llave, la que sobra, abre la salida. La salida arranca cerrada
- * (no se puede entrar) y se abre al recoger esa llave.
+ * Cada llave abre la puerta de su mismo índice (llave 0 → puerta 0, etc.); la
+ * última llave, la que sobra, abre la salida. Una llave no se recoge sola: la
+ * custodia un guardián telegrafiado que hay que vencer (docs/DECISIONES.md 032),
+ * y la salida abierta tiene su propio boss final. El set de llaves conseguidas es
+ * verdad del servidor (llega en el estado); acá solo se refleja en el mapa.
  */
 export function game() {
     return {
@@ -103,6 +111,9 @@ export function game() {
         // cliente solo renderiza lo que recibe y manda acciones.
         talisman: null,
         combate: null,
+        guardian: null, // guardián revelado en la celda de llave/salida (staging, 032):
+                        // se ve el boss con el combate aún cerrado (talismán libre) y
+                        // recién al "pelear" se abre el combate. null = sin staging.
         resultado: null, // 'victoria' | 'derrota' | null
         drop: null,
         bichoResuelto: null, // monstruo del último combate cerrado: se muestra en la
@@ -137,8 +148,10 @@ export function game() {
             this.ancho = ancho;
             this.alto = alto;
             this.alturaPx = alto * CELDA;
-            this.puertasAbiertas = this.marcas.puertas.map(() => false);
-            this.llavesRecogidas = this.marcas.llaves.map(() => false);
+            // Las llaves son verdad del servidor (032): el estado trae los índices
+            // ya conseguidos. Cada llave i abre la puerta i; la que sobra (índice =
+            // cantidad de puertas) abre la salida.
+            this.sincronizarLlaves(estado.llaves || []);
             this.visitadas[`${this.mago.x},${this.mago.y}`] = true;
             this.reordenarField(); // el talismán arranca ordenado por tipo, no en el orden crudo
             this.$nextTick(() => this.dibujar());
@@ -315,10 +328,10 @@ export function game() {
         },
 
         mover(evento) {
-            // No se camina con un combate abierto, con un drop sin resolver, ni
-            // con una llamada al servidor en vuelo (abrir combate): la pelea frena
+            // No se camina con un combate abierto, un guardián en staging (032), un
+            // drop sin resolver, ni una llamada al servidor en vuelo: la pelea frena
             // la marcha. El movimiento en sí ya no espera al servidor (022).
-            if (this.terminado || this.combate || this.resultado || this.cargando) return;
+            if (this.terminado || this.combate || this.guardian || this.resultado || this.cargando) return;
 
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
@@ -341,29 +354,25 @@ export function game() {
             this.visitadas[`${nx},${ny}`] = true;
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
 
-            const idxLlave = this.buscarLlave(nx, ny);
-            const llaveSinRecoger = idxLlave !== -1 && !this.llavesRecogidas[idxLlave];
+            this.dibujar();
 
-            if (llaveSinRecoger) {
-                // Guardián telegrafiado de la llave (docs/DECISIONES.md 011):
-                // pelea obligatoria. Sigue siendo client-side por ahora — las
-                // llaves todavía no viven en el servidor.
-                this.movimientos.push({ dir: 'guardian', x: nx, y: ny });
-                this.llavesRecogidas[idxLlave] = true;
-                if (idxLlave < this.puertasAbiertas.length) {
-                    this.puertasAbiertas[idxLlave] = true; // llave de puerta
-                } else {
-                    this.salidaAbierta = true; // llave que sobra: abre la salida
-                }
+            // Celda de llave con el guardián sin vencer: entrar dispara el staging
+            // telegrafiado (docs/DECISIONES.md 032). La llave NO se recoge sola — hay
+            // que matar a su guardián. La salida (con la 3ª llave ya conseguida) la
+            // custodia el boss final. En ambos casos el combate lo abre el servidor;
+            // acá solo se revela para armar el talismán antes de comprometerse.
+            const idxLlave = this.buscarLlave(nx, ny);
+            if (idxLlave !== -1 && !this.llavesRecogidas[idxLlave]) {
+                this.revelarGuardian(idxLlave, nx, ny);
+                return;
+            }
+            if (this.esSalida(nx, ny)) {
+                this.revelarGuardian(INDICE_SALIDA, nx, ny);
+                return;
             }
 
-            // Caminar y tirar el encuentro son locales ahora (022): la salida es
-            // terminal; si no, el cliente tira su propio dado y solo llama al
-            // servidor si saltó un bicho.
-            this.dibujar();
-            if (this.esSalida(nx, ny)) {
-                this.finalizar();
-            } else if (this.tirarEncuentro(nx, ny)) {
+            // Ambiente: el cliente tira su dado y llama al server solo si saltó (022).
+            if (this.tirarEncuentro(nx, ny)) {
                 this.abrirCombate(nx, ny);
             }
         },
@@ -395,6 +404,45 @@ export function game() {
             this.registrar(`⚔ (${x},${y}) riesgo ${prob}% · ¡te salta ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento})!`);
         },
 
+        // ── Guardianes de llave y salida (docs/DECISIONES.md 032) ──────────
+        /**
+         * Revela el guardián de una celda de llave (índice de la llave) o de la
+         * salida (INDICE_SALIDA), SIN abrir combate: es el staging telegrafiado. Con
+         * el combate cerrado, el talismán sigue editable — armás el loadout y recién
+         * ahí peleás. El bicho lo deriva el servidor del seed (autoridad, axioma 4).
+         */
+        async revelarGuardian(indice, x, y) {
+            const datos = await this.pedir(`/jugar/${this.token}/guardian`, { indice, x, y }, 'guardian');
+            if (!datos) return;
+            this.guardian = { ...datos.guardian, indice, x, y };
+            const cual = indice === INDICE_SALIDA
+                ? 'el guardián de la salida'
+                : `el guardián de la ${['primera', 'segunda', 'tercera'][indice] ?? `${indice + 1}ª`} llave`;
+            this.registrar(`✦ ${cual}: ${this.guardian.nombre} (${this.guardian.elemento}) N${this.guardian.nivel} — armá el talismán, no hay escape.`);
+        },
+
+        /**
+         * Comprometerse: abre el combate contra el guardián revelado. A partir de
+         * acá no hay escape (el servidor rechaza 'escapar' contra un boss). El
+         * combate se resuelve con la misma UI que cualquier pelea.
+         */
+        async pelearGuardian() {
+            const g = this.guardian;
+            if (!g) return;
+            const datos = await this.pedir(`/jugar/${this.token}/guardian`, { indice: g.indice, x: g.x, y: g.y, pelear: true }, 'pelear');
+            if (!datos) return;
+            this.guardian = null;
+            this.aplicarEstado(datos.estado);
+            this.registrar(`⚔ ¡peleás contra ${this.combate.monstruo.nombre}!`);
+        },
+
+        // Retirarse del staging sin pelear: el guardián sigue custodiando la llave.
+        // No se persiste nada (revelar no abre combate) — se puede volver a intentar.
+        retirarseGuardian() {
+            this.guardian = null;
+            this.registrar('te retirás — el guardián sigue en su puesto.');
+        },
+
         // ── Consola ────────────────────────────────────────────────────────
         registrar(txt) {
             this.consola.push(txt);
@@ -405,6 +453,24 @@ export function game() {
             if (!estado) return;
             this.talisman = estado.talisman;
             this.combate = estado.combate;
+            // Las llaves las manda el servidor (032). Redibujo solo si cambió alguna
+            // (una puerta que se abre), no en cada acción de combate.
+            if (estado.llaves && this.sincronizarLlaves(estado.llaves)) this.dibujar();
+        },
+
+        /**
+         * Sincroniza llaves/puertas/salida desde los índices que trae el servidor
+         * (032): cada llave i abre la puerta i; la que sobra (índice = cantidad de
+         * puertas) abre la salida. Devuelve true si cambió algo, para redibujar solo
+         * entonces.
+         */
+        sincronizarLlaves(llaves) {
+            const nuevas = this.marcas.llaves.map((_, i) => llaves.includes(i));
+            const cambio = nuevas.some((v, i) => v !== this.llavesRecogidas[i]);
+            this.llavesRecogidas = nuevas;
+            this.puertasAbiertas = this.marcas.puertas.map((_, i) => llaves.includes(i));
+            this.salidaAbierta = llaves.includes(this.marcas.puertas.length);
+            return cambio;
         },
 
         /**
@@ -457,6 +523,9 @@ export function game() {
             this.drop = datos.drop;
             if (datos.resultado === 'victoria' || datos.resultado === 'derrota') this.bichoResuelto = bicho;
             if (datos.resultado === 'derrota') this.terminado = true;
+            // Vencer al guardián de la salida (032) es ganar el laberinto: el server
+            // ya marcó la corrida terminada; el cliente muestra la victoria final.
+            if (datos.resultado === 'victoria' && bicho?.indice === INDICE_SALIDA) this.terminado = true;
         },
 
         atacar(id) { this.accionCombate('atacar', id); },
@@ -680,16 +749,6 @@ export function game() {
         // Relación de la gema con el golpe entrante, para el botón de bloqueo.
         matchupBloqueo(g) {
             return this.combate && this.combate.entrante ? matchup(g.elemento, this.combate.entrante.elemento) : 'neutral';
-        },
-
-        finalizar() {
-            this.terminado = true;
-            this.movimientos.push({ dir: 'finalizado', x: this.mago.x, y: this.mago.y });
-            this.enviarSalida();
-        },
-
-        async enviarSalida() {
-            await this.pedir(`/jugar/${this.token}/salir`, { x: this.mago.x, y: this.mago.y }, 'salir');
         },
     };
 }
