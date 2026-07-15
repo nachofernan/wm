@@ -21,13 +21,33 @@
         /* stretch: la columna 3 (rueda/combate/inventario) se estira a la altura
            del mapa, que suele ser la fila más alta. El mapa y la columna del mago
            optan afuera (flex-start) para no deformarse ni dejar aire de más. */
+        /* Centra el conjunto (mapa+paneles arriba, consola abajo) y le da márgenes
+           a los costados: el ancho = mapa(720) + gap + paneles(410+16+360) + padding.
+           Así el bloque de arriba y la consola de abajo miden lo mismo y quedan
+           alineados, con el fondo oscuro respirando a los lados. */
+        .envoltura { max-width: 1554px; margin: 0 auto; }
         .maze-layout { display: flex; align-items: stretch; gap: 16px; padding: 16px; }
         .caja { background: var(--caja); border: 1px solid var(--linea); border-radius: 10px; padding: 14px; }
-        .col { display: flex; flex-direction: column; gap: 14px; width: 360px; }
-        .col.gemas { width: 410px; align-self: flex-start; } /* la columna que más crece: se le da aire */
-        /* La columna del inventario se topa al mapa (max-height inline) y deja que
-           solo la lista interna scrollee — min-height:0 habilita que el flex encoja. */
-        .col.combate { min-height: 0; }
+        /* Los cuatro paneles como grilla 2×2: mago↔rueda comparten alto (fila 1) y
+           talismán↔inventario comparten alto (fila 2), así quedan alineados como
+           bloque. La grilla se topa a la altura del mapa (height inline). El orden
+           en el DOM es mago·talismán·rueda·inventario; las áreas los reubican. */
+        .paneles {
+            display: grid;
+            grid-template-columns: 410px 360px;
+            grid-template-rows: auto minmax(0, 1fr);
+            grid-template-areas: "mago rueda" "talisman inv";
+            gap: 14px 16px;
+            align-self: flex-start;
+        }
+        .paneles > .caja { min-height: 0; } /* habilita el scroll interno de las cards */
+        .paneles .hoja { grid-area: mago; }
+        .paneles .rueda { grid-area: rueda; }
+        /* El talismán llena su celda con las 6 ranuras repartidas por flex: sin
+           scroll y sin hueco, midan lo que midan la gema y la celda. */
+        .paneles .talisman-caja { grid-area: talisman; display: flex; flex-direction: column; }
+        .paneles .talisman-caja .gema.mini { flex: 1 1 0; }
+        .paneles .inv-caja { grid-area: inv; }
         .hoja-cab { display: flex; justify-content: space-between; align-items: center; }
         .badge-esencia { font-size: 12px; font-weight: 600; color: var(--esencia); background: var(--caja2); border: 1px solid var(--linea); border-radius: 6px; padding: 3px 8px; }
         h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--tenue); }
@@ -36,6 +56,8 @@
         .barra { height: 100%; transition: width 0.2s; }
         .barra.vida { background: var(--vida); } .barra.poder { background: var(--poder); } .barra.esencia { background: var(--esencia); }
         .valor { font-size: 12px; color: var(--tenue); }
+        .cfg-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--texto); cursor: pointer; user-select: none; }
+        .cfg-toggle input { cursor: pointer; margin: 0; }
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-top: 8px; }
         .stat { font-size: 12px; } .stat b { font-size: 14px; display: block; }
         .hoja-vida { margin-top: 8px; }
@@ -63,8 +85,21 @@
         .gema.fila.aire { background: linear-gradient(to left, rgba(var(--aire-rgb), 0.32), var(--caja2) 65%); }
         /* Un poco más de aire que en combate, para que el card no cambie tanto de
            tamaño al entrar/salir de combate (ahí suma la línea de acción-info). */
-        .gema.mini { padding: 9px 10px; margin-bottom: 6px; }
+        /* Las 6 ranuras se reparten el alto de la celda por flex (arriba); min-height
+           es solo un piso de seguridad, no fija el alto. Miden todas lo mismo, y el
+           contenido (nombre/barra/acción) se centra vertical para no quedar pegado
+           arriba con un hueco abajo cuando la ranura se estira. */
+        .gema.mini { display: flex; flex-direction: column; justify-content: center; padding: 9px 10px; margin-bottom: 6px; min-height: 56px; }
+        /* Los hijos (nombre, barra de carga, línea de acción) NO se encogen al
+           repartir el alto: si no, la barra de 6px es lo primero que se colapsa. */
+        .gema.mini > * { flex-shrink: 0; }
         .gema.mini .cab { margin-bottom: 5px; }
+        /* Ranura vacía: mismo alto que una gema, con borde punteado y texto tenue. */
+        .gema.mini.vacio-slot {
+            display: flex; align-items: center; justify-content: center;
+            border-style: dashed; border-left-style: dashed;
+            background: transparent; color: var(--tenue); font-size: 12px; font-style: italic;
+        }
         /* En combate, la gema entera es la acción: un velo rojo/gris/verde tapa el
            esfumado elemental de abajo — el matchup se lee sin texto de más. */
         .gema.accionable { cursor: pointer; transition: filter 0.1s ease; }
@@ -76,7 +111,9 @@
         .gema.accionable.neutral::before { background: linear-gradient(to right, #4a4856, #2a2933); }
         .gema.accionable.reves::before { background: linear-gradient(to right, #9c4444, #5a2626); }
         .gema.accionable.inactivo::before { background: linear-gradient(to right, rgba(10, 10, 14, 0.85), rgba(10, 10, 14, 0.65)); }
-        .accion-info { margin-top: 5px; font-size: 12.5px; font-weight: 600; text-align: center; }
+        /* min-height reserva la línea aunque esté vacía: la gema del talismán mide
+           igual en normal y en combate (no salta al aparecer el daño). */
+        .accion-info { margin-top: 5px; min-height: 16px; font-size: 12.5px; font-weight: 600; text-align: center; }
         .barra-cont.slim { height: 6px; margin: 4px 0 0; }
         .esencia-num { font-size: 12px; color: var(--esencia); font-weight: 600; }
         .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
@@ -215,7 +252,9 @@
         }
         .consola .linea { white-space: pre-wrap; }
         .consola .linea.combate { color: #e0c04a; }
-        .caja.juego { width: 300px; flex-shrink: 0; }
+        /* Mismo ancho que la columna del inventario (360px): la card queda alineada
+           justo debajo, y la consola ocupa el ancho del mapa + columna izquierda. */
+        .caja.juego { width: 360px; flex-shrink: 0; }
         /* Inventario: la card crece con la columna (stretch) y solo la lista
            interna scrollea, no la card entera. */
         .inv-caja { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -233,7 +272,7 @@
         };
     </script>
 
-    <div x-data="game" x-on:keydown.window="mover($event)">
+    <div class="envoltura" x-data="game" x-on:keydown.window="mover($event)">
     <div class="maze-layout">
         <!-- El mapa y, flotando encima, el combate: como no se puede caminar con un
              bicho abierto, la pelea se dibuja sobre el mapa ocioso en vez de abrir
@@ -373,8 +412,10 @@
             </div>
         </div>
 
-        <!-- ── Mago + gemas: la columna que más crece ────────────────── -->
-        <div class="col gemas">
+        <!-- ── Paneles: grilla 2×2 (mago·rueda arriba, talismán·inventario abajo).
+             Las filas comparten alto entre columnas y el conjunto se topa a la
+             altura del mapa, así queda alineado como bloque. ────────────── -->
+        <div class="paneles" :style="alturaPx ? `height:${alturaPx}px` : ''">
             <div class="caja hoja" x-show="talisman">
                 <div class="hoja-cab">
                     <h3 style="margin:0">El mago</h3>
@@ -412,7 +453,7 @@
                 </div>
             </div>
 
-            <div class="caja" x-show="talisman">
+            <div class="caja talisman-caja" x-show="talisman">
                 <div class="inv-head">
                     <h2 style="margin:0">Talismán <span class="valor" x-text="`(${fieldeadas().length}/6 ranuras)`"></span></h2>
                     <div class="orden-cont">
@@ -423,7 +464,6 @@
                             <option value="carga">↓ carga</option>
                             <option value="elemento">↓ tipo</option>
                         </select>
-                        <button class="mini-btn" @click="reordenarField()" title="reordenar ahora">↻</button>
                     </div>
                 </div>
                 <template x-for="g in fieldeadasMostradas()" :key="g.id">
@@ -450,19 +490,22 @@
                             </div>
                         </div>
                         <div class="barra-cont slim"><div class="barra esencia" :style="`width:${anchoEsencia(g)}%`"></div></div>
-                        <div class="accion-info" x-show="combate && combate.turno === 'tuTurno'" x-text="`~${danioEstimado(g)} dmg · ${costoAtaqueLabel(g)}`"></div>
-                        <div class="accion-info" x-show="combate && combate.turno === 'defensa'" x-text="`Bloquear · ${costoBloqueoLabel(g)}`"></div>
+                        <!-- Línea de acción SIEMPRE presente (reserva su alto aunque esté
+                             vacía) para que la card no cambie de tamaño entre normal y
+                             combate. En combate muestra daño/bloqueo; fuera, queda vacía. -->
+                        <div class="accion-info" x-text="!combate ? '' : (combate.turno === 'defensa' ? `Bloquear · ${costoBloqueoLabel(g)}` : `~${danioEstimado(g)} dmg · ${costoAtaqueLabel(g)}`)"></div>
                     </div>
+                </template>
+
+                <!-- Ranuras vacías: completan hasta 6 filas para que el talismán tenga
+                     siempre el mismo alto, con o sin gemas (ajuste visual). -->
+                <template x-for="i in slotsVacios()" :key="`vacio-${i}`">
+                    <div class="gema mini vacio-slot">ranura libre</div>
                 </template>
             </div>
 
-        </div>
-
-        <!-- ── Rueda + combate + partida ─────────────────────────────── -->
-        <!-- La columna se topa a la altura del mapa: así, con muchas piedras, el
-             inventario scrollea adentro en vez de estirar la fila y empujar el
-             pie (consola + datos) hacia abajo. -->
-        <div class="col combate" :style="alturaPx ? `max-height:${alturaPx}px` : ''">
+            <!-- ── Rueda (fila 1, col 2) + inventario (fila 2, col 2) de la grilla.
+                 El inventario scrollea adentro para no estirar la fila. ──────── -->
             <div class="caja rueda">
                 <h2>Rueda elemental — quién le gana a quién</h2>
                 <div class="rueda-ciclo">
@@ -495,7 +538,7 @@
                     <select x-model="ordenInv" class="orden">
                         <option value="nivel">↓ nivel</option>
                         <option value="carga">↓ carga</option>
-                        <option value="elemento">por elemento</option>
+                        <option value="elemento">↓ tipo</option>
                     </select>
                 </div>
                 <div class="filtros">
@@ -537,10 +580,11 @@
             </template>
         </div>
         <div class="caja juego">
-            <div class="stat-grid">
-                <div class="stat">bichos<b x-text="talisman ? talisman.bichosCaidos : 0"></b></div>
-                <div class="stat">gemas<b x-text="talisman ? talisman.gemasJuntadas : 0"></b></div>
-            </div>
+            <h2>configuración</h2>
+            <label class="cfg-toggle">
+                <input type="checkbox" x-model="caminoOpaco" @change="cambiarCamino()">
+                <span>ocultar paredes del camino explorado</span>
+            </label>
             <div class="valor" style="margin-top:10px">seed: <span x-text="seed"></span></div>
             <a href="{{ route('jugar.crear') }}" style="display:inline-block;margin-top:6px"><button>nueva partida</button></a>
         </div>

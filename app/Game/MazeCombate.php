@@ -34,7 +34,7 @@ final class MazeCombate
         'fuego' => ['nombre' => 'Espectro ígneo', 'vida' => 45, 'defensa' => 18, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
         'agua' => ['nombre' => 'Ondina', 'vida' => 60, 'defensa' => 22, 'coefPeso' => 1.0, 'coefDestreza' => 1.0, 'dificultad' => 3],
         'tierra' => ['nombre' => 'Gólem de tierra', 'vida' => 58, 'defensa' => 30, 'coefPeso' => 1.25, 'coefDestreza' => 0.75, 'dificultad' => 4],
-        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 12, 'coefPeso' => 0.75, 'coefDestreza' => 1.25, 'dificultad' => 2],
+        'aire' => ['nombre' => 'Sílfide del aire', 'vida' => 45, 'defensa' => 16, 'coefPeso' => 0.75, 'coefDestreza' => 1.25, 'dificultad' => 2],
     ];
 
     /**
@@ -129,11 +129,12 @@ final class MazeCombate
 
     /**
      * Niveles fijos de los guardianes por índice (DECISIÓN 032): las tres llaves
-     * a 3/5/7 (la rampa de la 029 muestreada en tercios: t=1/3→N3, 2/3→N5, 1→N7)
-     * y la salida a 9 — deliberadamente por encima del techo 1..7 de gemas y
-     * monstruos: se gana por matchup + carga, no out-levelándolo.
+     * a 4/6/8 y la salida a 10 — todos por encima del techo 1..7 de gemas y
+     * monstruos de ambiente, en rampa creciente. La salida a N10 es el pico
+     * deliberado: se gana por matchup + carga, no out-levelándolo. Números de
+     * arranque, subidos desde 3/5/7/9 para endurecer los bosses (tuning).
      */
-    private const NIVELES_GUARDIAN = [3, 5, 7, 9];
+    private const NIVELES_GUARDIAN = [4, 6, 8, 10];
 
     /**
      * Arma el guardián telegrafiado de una llave (índice 0..2) o de la salida

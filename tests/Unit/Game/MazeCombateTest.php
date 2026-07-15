@@ -342,13 +342,13 @@ test('los drops se pesan por la afinidad del monstruo (026): una colmena de fueg
     expect($conteo['fuego'])->toBeGreaterThan($conteo['agua'] * 3);
 });
 
-test('el guardián tiene nivel fijo por índice: 3/5/7 las llaves, 9 la salida (032)', function () {
-    // El nivel NO sale de la distancia (029): es fijo por índice. La salida (3)
-    // rompe el techo 1..7 a propósito.
-    expect(MazeCombate::guardian(42, 0, 5, 5)['monstruo']['nivel'])->toBe(3);
-    expect(MazeCombate::guardian(42, 1, 5, 5)['monstruo']['nivel'])->toBe(5);
-    expect(MazeCombate::guardian(42, 2, 5, 5)['monstruo']['nivel'])->toBe(7);
-    expect(MazeCombate::guardian(42, 3, 5, 5)['monstruo']['nivel'])->toBe(9);
+test('el guardián tiene nivel fijo por índice: 4/6/8 las llaves, 10 la salida (032)', function () {
+    // El nivel NO sale de la distancia (029): es fijo por índice. Todos rompen el
+    // techo 1..7 a propósito, y la salida (3) es el pico.
+    expect(MazeCombate::guardian(42, 0, 5, 5)['monstruo']['nivel'])->toBe(4);
+    expect(MazeCombate::guardian(42, 1, 5, 5)['monstruo']['nivel'])->toBe(6);
+    expect(MazeCombate::guardian(42, 2, 5, 5)['monstruo']['nivel'])->toBe(8);
+    expect(MazeCombate::guardian(42, 3, 5, 5)['monstruo']['nivel'])->toBe(10);
 });
 
 test('el guardián es telegrafiado y determinista: mismo seed/índice → mismo bicho (032)', function () {
@@ -389,12 +389,12 @@ test('matar al guardián otorga la llave de su índice y suelta una gema garanti
     expect($r['talisman']['bichosCaidos'])->toBe(1);
 });
 
-test('el botín del guardián de la salida (N9) se topea al techo de gema del jugador (7) (032)', function () {
-    // N9 tiene ~2.3× la vida base, así que peleo hasta matarlo (no one-shot):
+test('el botín del guardián de la salida (N10) se topea al techo de gema del jugador (7) (032)', function () {
+    // N10 tiene 2.5× la vida base, así que peleo hasta matarlo (no one-shot):
     // atacar en tu turno, bloquear con la misma gema sobrada en defensa.
     $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 40, 'carga' => 999999, 'fieldeada' => true]);
     $talisman['vida'] = 999999;
-    $combate = MazeCombate::guardian(1, 3, 0, 0); // salida, N9
+    $combate = MazeCombate::guardian(1, 3, 0, 0); // salida, N10
 
     $r = ['combate' => $combate, 'talisman' => $talisman, 'resultado' => null];
     while ($r['resultado'] === null) {
@@ -404,5 +404,5 @@ test('el botín del guardián de la salida (N9) se topea al techo de gema del ju
 
     expect($r['resultado'])->toBe('victoria');
     expect($r['llave'])->toBe(3);                    // señal de victoria final
-    expect($r['drop'][0]['nivel'])->toBeLessThanOrEqual(7); // N9 → gema ≤ 7
+    expect($r['drop'][0]['nivel'])->toBeLessThanOrEqual(7); // N10 → gema ≤ 7
 });

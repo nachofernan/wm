@@ -38,6 +38,12 @@ const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaj
 // Radio de visión total alrededor del mago (Chebyshev). Fuera de acá está la niebla.
 const RADIO_VISION = 1;
 
+// Clave del guardado de navegación en localStorage, por token. La posición y la
+// niebla explorada son puro cliente (nunca viajan al servidor, axioma 3), así que
+// sin esto una recarga te devuelve a la entrada. Es por partida: un token nuevo
+// (nueva partida) no tiene guardado y arranca limpio.
+const CLAVE_NAV = 'wm_nav';
+
 // Tope de gemas fieldeadas — espejo de Talisman::RANURAS (025). Fieldear valida
 // esto Y el cap (suma de niveles); acá se replica solo para el preview del botón.
 const RANURAS = 6;
@@ -107,6 +113,13 @@ export function game() {
         terminado: false,
         movimientos: [],
 
+        // Config de dificultad visual (DECISIÓN 033): con caminoOpaco, las celdas
+        // ya exploradas fuera del radio se tapan con un gris sólido — se ve por
+        // dónde pasaste, pero NO las paredes ni el tinte, así que la vuelta hay que
+        // recordarla. Apagado, es el velo translúcido y el laberinto se intuye. Se
+        // togglea desde el panel de configuración y se persiste global (no por token).
+        caminoOpaco: true,
+
         // Estado de personaje y combate — verdad del servidor (axioma 4). El
         // cliente solo renderiza lo que recibe y manda acciones.
         talisman: null,
@@ -138,6 +151,7 @@ export function game() {
             const { seed, ancho, alto, token, estado } = window.__MAZE__;
             this.token = token;
             this.seed = seed;
+            this.leerConfig(); // preferencias de display (caminoOpaco), persistidas global
             this.talisman = estado.talisman;
             this.combate = estado.combate;
             this.registrar('entrás al laberinto. WASD o flechas para caminar.');
@@ -152,6 +166,9 @@ export function game() {
             // ya conseguidos. Cada llave i abre la puerta i; la que sobra (índice =
             // cantidad de puertas) abre la salida.
             this.sincronizarLlaves(estado.llaves || []);
+            // Recupera dónde estabas y qué exploraste: sin esto la recarga te
+            // devuelve a la entrada (la posición no vive en el servidor).
+            this.restaurarNavegacion();
             this.visitadas[`${this.mago.x},${this.mago.y}`] = true;
             this.reordenarField(); // el talismán arranca ordenado por tipo, no en el orden crudo
             this.$nextTick(() => this.dibujar());
@@ -235,9 +252,14 @@ export function game() {
             for (let y = 0; y < this.alto; y++) {
                 for (let x = 0; x < this.ancho; x++) {
                     if (this.visible(x, y)) continue; // radio: detalle completo
-                    ctx.fillStyle = this.visitadas[`${x},${y}`]
-                        ? 'rgba(120, 120, 135, 0.55)' // rastro: velo gris, el laberinto se intuye
-                        : '#0a0a0d'; // no explorado: negro
+                    if (this.visitadas[`${x},${y}`]) {
+                        // Rastro explorado. Opaco (033): gris sólido que tapa paredes
+                        // y tinte — ves el camino hecho, no cómo volver. Apagado: velo
+                        // translúcido y el laberinto se intuye por debajo.
+                        ctx.fillStyle = this.caminoOpaco ? '#5b5b66' : 'rgba(120, 120, 135, 0.55)';
+                    } else {
+                        ctx.fillStyle = '#0a0a0d'; // no explorado: negro
+                    }
                     ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
                 }
             }
@@ -353,6 +375,7 @@ export function game() {
             this.pasos += 1;
             this.visitadas[`${nx},${ny}`] = true;
             this.movimientos.push({ dir: direccion.nombre, x: nx, y: ny });
+            this.guardarNavegacion(); // que una recarga no pierda el paso recién dado
 
             this.dibujar();
 
@@ -471,6 +494,56 @@ export function game() {
             this.puertasAbiertas = this.marcas.puertas.map((_, i) => llaves.includes(i));
             this.salidaAbierta = llaves.includes(this.marcas.puertas.length);
             return cambio;
+        },
+
+        // ── Navegación persistida (puro cliente, localStorage) ─────────────
+        /**
+         * Persiste posición, pasos y rastro explorado en localStorage (por token)
+         * tras cada paso, para que una recarga no te devuelva a la entrada. Es lo
+         * único que no vive en el servidor (axioma 3); el talismán/HP/llaves ya
+         * persisten allá. Un fallo de storage no rompe la partida: se sigue sin guardar.
+         */
+        guardarNavegacion() {
+            try {
+                localStorage.setItem(`${CLAVE_NAV}_${this.token}`, JSON.stringify({
+                    mago: this.mago,
+                    pasos: this.pasos,
+                    visitadas: this.visitadas,
+                    movimientos: this.movimientos,
+                }));
+            } catch { /* storage lleno o deshabilitado: la partida sigue igual */ }
+        },
+
+        /**
+         * Restaura la navegación guardada de esta partida, si la hay. La llama init
+         * antes de dibujar. Sin guardado (partida nueva) no hace nada y arrancás en
+         * la entrada; un guardado corrupto se ignora.
+         */
+        restaurarNavegacion() {
+            try {
+                const crudo = localStorage.getItem(`${CLAVE_NAV}_${this.token}`);
+                if (!crudo) return;
+                const nav = JSON.parse(crudo);
+                this.mago = nav.mago ?? this.mago;
+                this.pasos = nav.pasos ?? 0;
+                this.visitadas = nav.visitadas ?? {};
+                this.movimientos = nav.movimientos ?? [];
+            } catch { /* guardado corrupto: se arranca limpio */ }
+        },
+
+        // ── Configuración de display (puro cliente, global) ────────────────
+        /** Lee las preferencias de display de localStorage. Global (no por token). */
+        leerConfig() {
+            try {
+                const v = localStorage.getItem('wm_cfg_caminoOpaco');
+                if (v !== null) this.caminoOpaco = v === '1';
+            } catch { /* storage deshabilitado: se usan los defaults */ }
+        },
+
+        /** Persiste caminoOpaco y redibuja. La llama el toggle del panel de config. */
+        cambiarCamino() {
+            try { localStorage.setItem('wm_cfg_caminoOpaco', this.caminoOpaco ? '1' : '0'); } catch { /* nada */ }
+            this.dibujar();
         },
 
         /**
@@ -708,6 +781,10 @@ export function game() {
 
         capEnUso() { return this.fieldeadas().reduce((s, g) => s + g.nivel, 0); },
         poderActual() { return this.fieldeadas().reduce((s, g) => s + (g.carga > 0 ? g.nivel : 0), 0); },
+
+        // Ranuras vacías a mostrar en el talismán (RANURAS − fieldeadas): rellenan
+        // hasta 6 filas para que la card mantenga siempre el mismo alto (ajuste visual).
+        slotsVacios() { return Math.max(0, RANURAS - this.fieldeadas().length); },
 
         // ── Preview de combate (solo display; la resolución la hace el servidor) ──
         // Daño estimado de atacar con la gema g al monstruo actual: tirada media,

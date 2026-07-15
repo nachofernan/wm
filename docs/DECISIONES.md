@@ -883,3 +883,31 @@ total"); revividas antes del boss (game-over como placeholder). **Cascada:** nin
 colocación ya existe y es paritaria. El trabajo es gameplay: gate de puertas en el cliente (movimiento, 022),
 combate de boss en el servidor (`MazeCombate`/controller, autoridad — axioma 4), y el set de llaves en la caché
 `runs` (proyección, axioma 5). Números de arranque: niveles 3/5/7/9.
+
+## 033 — El rastro explorado se tapa opaco (config); bosses y sílfide más duros — 2026-07-14
+**Decisión:** Tres ajustes de dificultad, ninguno toca el generador ni la paridad.
+
+- **Camino explorado opaco (nueva niebla dura).** Las celdas ya pisadas fuera del radio de visión se tapan con
+  un gris **sólido** en vez del velo translúcido de antes: se ve **por dónde** pasaste, pero no las paredes ni
+  el tinte de colmena. La vuelta hay que recordarla, no leerla del mapa — y quedar sin salida en una colmena
+  duele. Es puro cliente (`dibujarNiebla`), y va detrás de un **toggle on-off en el panel de configuración**,
+  persistido global en `localStorage` (no por token) para poder comparar mientras se testea. Default: **on**.
+
+- **El panel de configuración reemplaza al de stats.** El cuadro del seed dejó de mostrar bichos/gemas (no
+  aportaban a ninguna decisión) y ahora hospeda las perillas de testeo. Es el lugar donde van a vivir las
+  próximas configuraciones de prueba.
+
+- **Guardianes subidos de 3/5/7/9 a 4/6/8/10.** Sube el piso de los cuatro bosses (032): rampa creciente, la
+  salida como pico deliberado a N10, más lejos todavía del techo N7 del jugador. Son números de arranque; esto
+  revierte-en-espíritu los niveles de la 032 (bitácora append-only: entrada nueva, no se reescribe la vieja).
+
+- **Sílfide del aire: defensa 12 → 16.** Farmear una colmena de aire era demasiado barato. Sigue siendo el
+  arquetipo más blando (fuego 18, agua 22, tierra 30), pero deja de ser gratis. Número de arranque.
+
+**Por qué:** El maze se leía como un plano una vez caminado — la planificación (§2) se abarataba porque la vuelta
+estaba siempre servida. Taparlo opaco convierte la memoria del recorrido en un recurso. Los bumps de boss y de
+sílfide son tuning de sesión de juego, no rediseño. **Se descartó:** tapar también las marcas de objetivo
+(llaves/puertas/salida siguen siendo faros, se dibujan por encima de la niebla); hacer el opaco fijo sin toggle
+(se quiere comparar mientras se ajusta el resto). **Cascada:** ninguna — nada de esto toca `MazeGenerator`, el
+PRNG ni el test de paridad. Los tests de `MazeCombate`/`JugarController` que asserteaban 3/5/7/9 se actualizaron
+a 4/6/8/10.

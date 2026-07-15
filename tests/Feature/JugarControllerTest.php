@@ -207,7 +207,7 @@ test('guardian sin pelear revela el telegraph pero no abre combate ni persiste (
 
     $response->assertOk()->assertJson(['ok' => true]);
     expect($response->json('guardian.boss'))->toBeTrue();
-    expect($response->json('guardian.nivel'))->toBe(3); // llave 0 → N3
+    expect($response->json('guardian.nivel'))->toBe(4); // llave 0 → N4
     // Staging: no persiste nada, el talismán sigue disponible.
     expect($run->fresh()->combate)->toBeNull();
     expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
@@ -247,10 +247,10 @@ test('guardian de una llave ya conseguida es ilegal (032)', function () {
 });
 
 test('matar al guardián de una llave graba la llave y registra el evento, sin terminar la corrida (032)', function () {
-    // Gema descomunal: un golpe letal cierra el combate del guardián de llave (N3).
+    // Gema descomunal: un golpe letal cierra el combate del guardián de llave (N4).
     $talisman = MazeCombate::talismanInicial();
     $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 999999, 'fieldeada' => true]];
-    $combate = MazeCombate::guardian(42, 0, 11, 1); // llave 0 → N3
+    $combate = MazeCombate::guardian(42, 0, 11, 1); // llave 0 → N4
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
         'talisman' => $talisman, 'combate' => $combate,
@@ -267,10 +267,10 @@ test('matar al guardián de una llave graba la llave y registra el evento, sin t
     expect($evento->payload['indice'])->toBe(0);
 });
 
-test('matar al guardián de la salida (N9) termina la partida como victoria (032)', function () {
+test('matar al guardián de la salida (N10) termina la partida como victoria (032)', function () {
     $talisman = MazeCombate::talismanInicial();
     $talisman['gemas'] = [['id' => 99, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 999999, 'fieldeada' => true]];
-    $combate = MazeCombate::guardian(42, MazeCombate::INDICE_SALIDA, 14, 25); // salida → N9
+    $combate = MazeCombate::guardian(42, MazeCombate::INDICE_SALIDA, 14, 25); // salida → N10
     $run = Run::create([
         'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
         'talisman' => $talisman, 'combate' => $combate,
