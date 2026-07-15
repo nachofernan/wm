@@ -892,6 +892,8 @@ combate de boss en el servidor (`MazeCombate`/controller, autoridad — axioma 4
   el tinte de colmena. La vuelta hay que recordarla, no leerla del mapa — y quedar sin salida en una colmena
   duele. Es puro cliente (`dibujarNiebla`), y va detrás de un **toggle on-off en el panel de configuración**,
   persistido global en `localStorage` (no por token) para poder comparar mientras se testea. Default: **on**.
+  Un **segundo toggle** repinta el tinte de colmena sobre el gris opaco (ves dónde había peligro sin recuperar
+  las paredes) — herramienta de análisis, default **off**, solo aplica con las paredes ocultas.
 
 - **El panel de configuración reemplaza al de stats.** El cuadro del seed dejó de mostrar bichos/gemas (no
   aportaban a ninguna decisión) y ahora hospeda las perillas de testeo. Es el lugar donde van a vivir las

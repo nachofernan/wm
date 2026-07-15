@@ -120,6 +120,12 @@ export function game() {
         // togglea desde el panel de configuración y se persiste global (no por token).
         caminoOpaco: true,
 
+        // Ver el tinte de colmena en el rastro gris opaco (033): con caminoOpaco el
+        // gris tapa todo, pero con esto se repinta el sesgo de encuentro encima —
+        // ves dónde había peligro aunque las paredes sigan ocultas. Solo tiene efecto
+        // con caminoOpaco (sin él, el velo translúcido ya deja ver el tinte).
+        verColmenas: false,
+
         // Estado de personaje y combate — verdad del servidor (axioma 4). El
         // cliente solo renderiza lo que recibe y manda acciones.
         talisman: null,
@@ -227,13 +233,21 @@ export function game() {
          */
         dibujarCampo(ctx) {
             this.campo.celdas.forEach((fila, y) => {
-                fila.forEach((celda, x) => {
-                    if (!celda.elem) return;
-                    const alpha = Math.min(0.6, celda.prob / 20);
-                    ctx.fillStyle = `rgba(${COLOR_ELEMENTO[celda.elem]}, ${alpha})`;
-                    ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
-                });
+                fila.forEach((_, x) => this.pintarTinte(ctx, x, y));
             });
+        },
+
+        /**
+         * Pinta el tinte de encuentro de una celda (color = elemento, alpha = prob).
+         * Lo usa dibujarCampo (mapa base) y la niebla, cuando verColmenas repinta el
+         * sesgo sobre el rastro gris opaco (033). Las celdas de solo ambiente no se pintan.
+         */
+        pintarTinte(ctx, x, y) {
+            const celda = this.campo.celdas[y][x];
+            if (!celda.elem) return;
+            const alpha = Math.min(0.6, celda.prob / 20);
+            ctx.fillStyle = `rgba(${COLOR_ELEMENTO[celda.elem]}, ${alpha})`;
+            ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
         },
 
         /** ¿La celda (x,y) está dentro del radio de visión total del mago? */
@@ -257,10 +271,14 @@ export function game() {
                         // y tinte — ves el camino hecho, no cómo volver. Apagado: velo
                         // translúcido y el laberinto se intuye por debajo.
                         ctx.fillStyle = this.caminoOpaco ? '#5b5b66' : 'rgba(120, 120, 135, 0.55)';
+                        ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
+                        // Con verColmenas, el sesgo de encuentro se repinta sobre el
+                        // gris: se ve dónde había colmena aunque las paredes sigan tapadas.
+                        if (this.caminoOpaco && this.verColmenas) this.pintarTinte(ctx, x, y);
                     } else {
                         ctx.fillStyle = '#0a0a0d'; // no explorado: negro
+                        ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
                     }
-                    ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
                 }
             }
         },
@@ -535,14 +553,19 @@ export function game() {
         /** Lee las preferencias de display de localStorage. Global (no por token). */
         leerConfig() {
             try {
-                const v = localStorage.getItem('wm_cfg_caminoOpaco');
-                if (v !== null) this.caminoOpaco = v === '1';
+                const opaco = localStorage.getItem('wm_cfg_caminoOpaco');
+                if (opaco !== null) this.caminoOpaco = opaco === '1';
+                const colm = localStorage.getItem('wm_cfg_verColmenas');
+                if (colm !== null) this.verColmenas = colm === '1';
             } catch { /* storage deshabilitado: se usan los defaults */ }
         },
 
-        /** Persiste caminoOpaco y redibuja. La llama el toggle del panel de config. */
-        cambiarCamino() {
-            try { localStorage.setItem('wm_cfg_caminoOpaco', this.caminoOpaco ? '1' : '0'); } catch { /* nada */ }
+        /** Persiste las preferencias de display y redibuja. La llaman los toggles del panel. */
+        aplicarCfg() {
+            try {
+                localStorage.setItem('wm_cfg_caminoOpaco', this.caminoOpaco ? '1' : '0');
+                localStorage.setItem('wm_cfg_verColmenas', this.verColmenas ? '1' : '0');
+            } catch { /* nada */ }
             this.dibujar();
         },
 

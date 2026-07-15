@@ -56,8 +56,11 @@
         .barra { height: 100%; transition: width 0.2s; }
         .barra.vida { background: var(--vida); } .barra.poder { background: var(--poder); } .barra.esencia { background: var(--esencia); }
         .valor { font-size: 12px; color: var(--tenue); }
-        .cfg-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--texto); cursor: pointer; user-select: none; }
+        .cfg-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--texto); cursor: pointer; user-select: none; margin-top: 4px; }
         .cfg-toggle input { cursor: pointer; margin: 0; }
+        /* El toggle de colmenas solo aplica con las paredes ocultas; sin eso, se atenúa. */
+        .cfg-toggle.inactivo { opacity: 0.45; cursor: default; }
+        .cfg-toggle.inactivo input { cursor: default; }
         .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 12px; margin-top: 8px; }
         .stat { font-size: 12px; } .stat b { font-size: 14px; display: block; }
         .hoja-vida { margin-top: 8px; }
@@ -582,8 +585,12 @@
         <div class="caja juego">
             <h2>configuración</h2>
             <label class="cfg-toggle">
-                <input type="checkbox" x-model="caminoOpaco" @change="cambiarCamino()">
+                <input type="checkbox" x-model="caminoOpaco" @change="aplicarCfg()">
                 <span>ocultar paredes del camino explorado</span>
+            </label>
+            <label class="cfg-toggle" :class="{ inactivo: !caminoOpaco }">
+                <input type="checkbox" x-model="verColmenas" @change="aplicarCfg()" :disabled="!caminoOpaco">
+                <span>ver colmenas en el camino gris</span>
             </label>
             <div class="valor" style="margin-top:10px">seed: <span x-text="seed"></span></div>
             <a href="{{ route('jugar.crear') }}" style="display:inline-block;margin-top:6px"><button>nueva partida</button></a>
