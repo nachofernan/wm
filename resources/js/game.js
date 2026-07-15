@@ -124,7 +124,7 @@ export function game() {
         // gris tapa todo, pero con esto se repinta el sesgo de encuentro encima —
         // ves dónde había peligro aunque las paredes sigan ocultas. Solo tiene efecto
         // con caminoOpaco (sin él, el velo translúcido ya deja ver el tinte).
-        verColmenas: false,
+        verColmenas: true,
 
         // Estado de personaje y combate — verdad del servidor (axioma 4). El
         // cliente solo renderiza lo que recibe y manda acciones.
