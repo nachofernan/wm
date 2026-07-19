@@ -448,3 +448,37 @@ test('el botín del guardián de la salida (N10) se topea al techo de gema del j
     expect($r['llave'])->toBe(3);                    // señal de victoria final
     expect($r['drop'][0]['nivel'])->toBeLessThanOrEqual(7); // N10 → gema ≤ 7
 });
+
+// --- Cofres (DECISIÓN 035) ---
+
+test('abrir un cofre otorga una gema garantizada del nivel de la marca, con carga llena (035)', function () {
+    $talisman = MazeCombate::talismanInicial();
+    $antes = count($talisman['gemas']);
+    $proximoId = $talisman['proximoId'];
+
+    $r = MazeCombate::abrirCofre(42, 25, 18, 5, $talisman);
+
+    expect($r['drop']['id'])->toBe($proximoId);
+    expect($r['drop']['nivel'])->toBe(5);
+    expect($r['drop']['elemento'])->toBeIn(['fuego', 'agua', 'tierra', 'aire']);
+    expect($r['drop']['carga'])->toBe(5 * \App\Game\Talisman::CARGA_POR_NIVEL); // nace llena
+    expect($r['drop']['fieldeada'])->toBeFalse();
+
+    // La gema entró al inventario y los contadores se movieron (menos bichosCaidos: no hay bicho).
+    expect(count($r['talisman']['gemas']))->toBe($antes + 1);
+    expect($r['talisman']['proximoId'])->toBe($proximoId + 1);
+    expect($r['talisman']['gemasJuntadas'])->toBe($talisman['gemasJuntadas'] + 1);
+    expect($r['talisman']['bichosCaidos'])->toBe($talisman['bichosCaidos']);
+});
+
+test('el botín del cofre es determinista: mismo seed y celda → misma gema (035)', function () {
+    $a = MazeCombate::abrirCofre(7, 11, 12, 4, MazeCombate::talismanInicial());
+    $b = MazeCombate::abrirCofre(7, 11, 12, 4, MazeCombate::talismanInicial());
+
+    expect($a['drop']['elemento'])->toBe($b['drop']['elemento']);
+    expect($a['drop']['nivel'])->toBe($b['drop']['nivel']);
+
+    // Otra celda del mismo seed puede rendir otro elemento: el botín depende de (seed, x, y).
+    $c = MazeCombate::abrirCofre(7, 20, 3, 4, MazeCombate::talismanInicial());
+    expect($c['drop']['elemento'])->toBeIn(['fuego', 'agua', 'tierra', 'aire']);
+});

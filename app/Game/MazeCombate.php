@@ -432,6 +432,43 @@ final class MazeCombate
     }
 
     /**
+     * Abre un cofre (DECISIÓN 035) y otorga su gema garantizada al talismán. Un
+     * cofre es "loot garantizado" del mismo tipo que un drop de boss (§6): el
+     * elemento se pesa por la afinidad del cofre con la MISMA rueda que un drop de
+     * combate (elementoDrop), y la carga nace llena. El `$nivel` viene de la marca
+     * del cofre (MapaBuilder::nivelCofre, por profundidad); acá solo se resuelve el
+     * elemento y se arma la gema.
+     *
+     * Como un guardián, el cofre tiene una afinidad elemental derivada del seed (el
+     * primer output del PRNG), y elementoDrop sesga el botín hacia ella. La semilla
+     * se deriva de (seed, x, y) con una constante propia, decorrelada del stream de
+     * combate de iniciar(). Es 100% servidor (axioma 4): el elemento no viaja en las
+     * marcas, se sortea al abrir. No hay bicho, así que suma a gemasJuntadas pero no
+     * a bichosCaidos.
+     *
+     * @return array{talisman: array, drop: array}
+     */
+    public static function abrirCofre(int $seed, int $x, int $y, int $nivel, array $talisman): array
+    {
+        $semilla = ($seed ^ ($x * 73856093) ^ ($y * 19349663) ^ 0x9E3779B1) & 0xFFFFFFFF;
+        $prng = new Prng($semilla);
+
+        $afinidad = EncuentroBuilder::ELEMENTOS[$prng->randBelow(count(EncuentroBuilder::ELEMENTOS))];
+        $gema = [
+            'id' => $talisman['proximoId'],
+            'elemento' => self::elementoDrop($prng, $afinidad),
+            'nivel' => $nivel,
+            'carga' => $nivel * Talisman::CARGA_POR_NIVEL,
+            'fieldeada' => false,
+        ];
+        $talisman['gemas'][] = $gema;
+        $talisman['proximoId']++;
+        $talisman['gemasJuntadas']++;
+
+        return ['talisman' => $talisman, 'drop' => $gema];
+    }
+
+    /**
      * Escape (030): cierra el combate como huida. Sin botín y sin terminar la
      * partida — la colmena queda viva y el mago sigue en pie con menos esencia.
      */
