@@ -25,6 +25,7 @@ class Run extends Model
         'talisman',
         'combate',
         'llaves',
+        'cofres',
     ];
 
     protected $casts = [
@@ -32,6 +33,7 @@ class Run extends Model
         'talisman' => 'array',
         'combate' => 'array',
         'llaves' => 'array',
+        'cofres' => 'array',
     ];
 
     public function events(): HasMany
