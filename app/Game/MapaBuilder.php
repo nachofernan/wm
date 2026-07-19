@@ -31,8 +31,15 @@ final class MapaBuilder
     public const BRAZO_MINIMO = 25;
 
     /**
-     * Calcula entrada, salida, puertas y llaves para una matriz ya generada.
-     * No valida las restricciones de diseño — eso lo hace esValido().
+     * Tope de cofres por laberinto (DECISIÓN 035): se colocan hasta esta cantidad
+     * en las puntas de brazo más largas. Si hay menos candidatas que cumplan
+     * BRAZO_MINIMO, van menos — el número no se fuerza.
+     */
+    public const MAX_COFRES = 8;
+
+    /**
+     * Calcula entrada, salida, puertas, llaves y cofres para una matriz ya
+     * generada. No valida las restricciones de diseño — eso lo hace esValido().
      *
      * @param  list<list<array{N:int,E:int,S:int,O:int}>>  $matriz
      * @return array{
@@ -40,6 +47,7 @@ final class MapaBuilder
      *     salida: array{x:int,y:int,distancia:int},
      *     puertas: list<array{x:int,y:int}|null>,
      *     llaves: list<array{x:int,y:int,m:int}|null>,
+     *     cofres: list<array{x:int,y:int,nivel:int}>,
      * }
      */
     public static function marcas(array $matriz): array
@@ -48,11 +56,31 @@ final class MapaBuilder
         $salida = self::celdaMasLejana($distanciasInicio);
         $distanciasSalida = self::distancias($matriz, $salida['x'], $salida['y']);
 
+        $puertas = self::ubicarPuertas($distanciasInicio, $distanciasSalida, $salida['distancia']);
+        $llaves = self::ubicarLlaves($distanciasInicio, $distanciasSalida, $salida['distancia']);
+
+        // Celdas ya ocupadas: un cofre no cae sobre entrada, salida, puerta ni
+        // llave. Entrada/salida/puertas están sobre el camino (m=0) y ya las filtra
+        // BRAZO_MINIMO; las llaves SÍ son puntas de brazo y colisionarían — por eso
+        // el set. Clave "x,y".
+        $ocupadas = ['0,0' => true, "{$salida['x']},{$salida['y']}" => true];
+        foreach ($puertas as $p) {
+            if ($p !== null) {
+                $ocupadas["{$p['x']},{$p['y']}"] = true;
+            }
+        }
+        foreach ($llaves as $l) {
+            if ($l !== null) {
+                $ocupadas["{$l['x']},{$l['y']}"] = true;
+            }
+        }
+
         return [
             'entrada' => ['x' => 0, 'y' => 0],
             'salida' => $salida,
-            'puertas' => self::ubicarPuertas($distanciasInicio, $distanciasSalida, $salida['distancia']),
-            'llaves' => self::ubicarLlaves($distanciasInicio, $distanciasSalida, $salida['distancia']),
+            'puertas' => $puertas,
+            'llaves' => $llaves,
+            'cofres' => self::ubicarCofres($matriz, $distanciasInicio, $distanciasSalida, $salida['distancia'], $ocupadas),
         ];
     }
 
@@ -263,5 +291,93 @@ final class MapaBuilder
         }
 
         return $llaves;
+    }
+
+    /**
+     * Ubica hasta MAX_COFRES cofres en las puntas de brazo más largas de TODO el
+     * laberinto (DECISIÓN 035). A diferencia de las llaves (una punta por segmento),
+     * acá se toma el top-N global por extensión `m`, sin partir por tramo. Una
+     * "punta de brazo" es un callejón sin salida (una sola celda navegable
+     * adyacente) que cuelga del camino con m ≥ BRAZO_MINIMO — el mismo piso que las
+     * llaves. Se excluyen las celdas ya ocupadas (entrada, salida, puertas, llaves):
+     * las llaves también son puntas y colisionarían.
+     *
+     * El nivel de la gema del cofre sale de la profundidad de la celda (nivelCofre),
+     * el mismo eje 0..1 → 1..7 que escala monstruos y drops (027/029). Es posición
+     * pura del seed: paritario y espejado en resources/js/mapaBuilder.js. El BOTÍN
+     * real (elemento + gema) lo tira el servidor al abrir (axioma 4), no sale de acá.
+     *
+     * @param  list<list<array{N:int,E:int,S:int,O:int}>>  $matriz
+     * @param  list<list<int>>  $distanciasInicio
+     * @param  list<list<int>>  $distanciasSalida
+     * @param  array<string,bool>  $ocupadas  celdas "x,y" vedadas para un cofre
+     * @return list<array{x:int,y:int,nivel:int}>
+     */
+    private static function ubicarCofres(array $matriz, array $distanciasInicio, array $distanciasSalida, int $total, array $ocupadas): array
+    {
+        $ancho = count($matriz[0]);
+        $alto = count($matriz);
+
+        $candidatos = [];
+        foreach ($distanciasInicio as $y => $fila) {
+            foreach ($fila as $x => $dInicio) {
+                if ($dInicio < 0) {
+                    continue; // inalcanzable (no pasa en un árbol conexo, pero por las dudas)
+                }
+                $m = self::extensionDesdeCamino($dInicio, $distanciasSalida[$y][$x], $total);
+                if ($m < self::BRAZO_MINIMO) {
+                    continue; // brazo demasiado corto (también descarta el camino, m=0)
+                }
+                if (self::pasajes($matriz, $x, $y, $ancho, $alto) !== 1) {
+                    continue; // no es una punta: solo un callejón sin salida cuenta
+                }
+                if (isset($ocupadas["$x,$y"])) {
+                    continue; // ya hay una llave/puerta/entrada/salida acá
+                }
+                $candidatos[] = ['x' => $x, 'y' => $y, 'm' => (int) $m, 'nivel' => self::nivelCofre($dInicio, $total)];
+            }
+        }
+
+        // Top-N por m; desempate determinista y paritario (y asc, luego x asc). El
+        // recorrido ya fue en orden de fila, pero el orden total explícito no depende
+        // de la estabilidad del sort de cada lenguaje.
+        usort($candidatos, fn ($a, $b) => $b['m'] <=> $a['m'] ?: $a['y'] <=> $b['y'] ?: $a['x'] <=> $b['x']);
+
+        return array_map(
+            fn ($c) => ['x' => $c['x'], 'y' => $c['y'], 'nivel' => $c['nivel']],
+            array_slice($candidatos, 0, self::MAX_COFRES),
+        );
+    }
+
+    /** Cuántas celdas vecinas navegables tiene (x,y): 1 = punta / callejón sin salida. */
+    private static function pasajes(array $matriz, int $x, int $y, int $ancho, int $alto): int
+    {
+        $n = 0;
+        foreach (self::DIRECCIONES as $d) {
+            $nx = $x + $d['dx'];
+            $ny = $y + $d['dy'];
+            if ($nx < 0 || $nx >= $ancho || $ny < 0 || $ny >= $alto) {
+                continue;
+            }
+            if ($matriz[$y][$x][$d['nombre']] === 0) {
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /**
+     * Nivel entero 1..7 de la gema de un cofre según la profundidad de su celda.
+     * Reusa el eje de dificultadCelda (t = distancia a la entrada / total) y la
+     * misma escala que fija el nivel de un monstruo en MazeCombate::iniciar
+     * (round(1 + t·6), clampeada) — así un cofre en el fondo rinde como un bicho del
+     * fondo. Cerca de la entrada, ~N1; en la salida, N7.
+     */
+    private static function nivelCofre(int $dInicio, int $total): int
+    {
+        $t = $total > 0 ? $dInicio / $total : 0.0;
+
+        return max(1, min(7, (int) round(1 + $t * 6)));
     }
 }
