@@ -287,6 +287,17 @@ test('curar con la vida llena es rechazado', function () {
     expect($r['error'])->toBe('vida llena');
 });
 
+test('el costo de revivir escala 1→10 con la profundidad y se clampea en los bordes (034)', function () {
+    // 1 en la entrada, 10 en el fondo, monótono y sin salirse del rango.
+    expect(Talisman::costoRevivir(0.0))->toBe(1);
+    expect(Talisman::costoRevivir(1.0))->toBe(10);
+    expect(Talisman::costoRevivir(0.5))->toBeGreaterThan(1);
+    expect(Talisman::costoRevivir(0.5))->toBeLessThan(10);
+    // Clamp defensivo por si t viniera fuera de rango.
+    expect(Talisman::costoRevivir(-1.0))->toBe(1);
+    expect(Talisman::costoRevivir(2.0))->toBe(10);
+});
+
 /** Talismán limpio nivel 1 con una sola gema (fieldeada o no), para recargar. */
 function talismanConUnaGema(array $gema, int $esencia): array
 {

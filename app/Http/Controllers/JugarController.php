@@ -207,10 +207,11 @@ class JugarController extends Controller
                 $run->events()->create(['tipo' => 'combate_ganado', 'payload' => ['drop' => $res['drop']]]);
             }
         } elseif ($res['resultado'] === 'derrota') {
-            // Sin revividas todavía (docs/DISENO.md §4): la derrota termina la
-            // partida. Placeholder hasta que se construya el reset/revivida.
+            // Caés, pero la corrida NO termina todavía (DECISIÓN 034): queda en el
+            // limbo "muerto, pendiente de decisión" (combate=null, vida≤0, !terminado).
+            // Desde ahí se revive pagando esencia (POST /revivir) o se acepta la
+            // derrota. El evento se graba append-only como antes.
             $run->events()->create(['tipo' => 'derrota', 'payload' => []]);
-            $run->terminado = true;
         } elseif ($res['resultado'] === 'huida') {
             // Escape (030): el combate se cierra pero la partida sigue; la colmena
             // queda viva. Se registra append-only como cualquier otro cierre.
@@ -226,6 +227,69 @@ class JugarController extends Controller
             'log' => $res['log'],
             'estado' => $this->estado($run),
         ]);
+    }
+
+    /**
+     * Revivir tras caer (docs/DECISIONES.md 034). Universal: vale para una muerte
+     * de ambiente y para una contra un guardián, sin tope de cantidad —ilimitado
+     * mientras haya esencia—. El estado "muerto, pendiente de decisión" no necesita
+     * columna: tras el golpe mártir (034) `vida ≤ 0` solo convive con una derrota,
+     * así que el limbo es `combate === null && talisman.vida ≤ 0 && !terminado`.
+     *
+     * El costo escala por la PROFUNDIDAD de la celda donde moriste (la posición
+     * guardada del run, que encuentro/guardian ya persisten al abrir combate), no
+     * por cuántas veces reviviste: 1 esencia en la entrada, 10 en el fondo. Si
+     * alcanza, se paga y volvés con 1 de vida —y NADA más del talismán se toca: la
+     * vida se paga sola, recargar las gemas es el endpoint recargar (028), aparte—.
+     * Si no alcanza, es game over real: la corrida termina acá.
+     */
+    public function revivir(string $token): JsonResponse
+    {
+        $run = Run::where('token', $token)->firstOrFail();
+
+        if ($run->terminado) {
+            return response()->json(['ok' => false, 'motivo' => 'terminada'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($run->combate !== null) {
+            return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $talisman = $run->talisman;
+        if (($talisman['vida'] ?? 1) > 0) {
+            return response()->json(['ok' => false, 'motivo' => 'nada que revivir'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $costo = $this->costoRevivir($run);
+
+        if ($talisman['esencia'] < $costo) {
+            // No alcanza: game over real. La corrida termina y se registra append-only.
+            $run->events()->create(['tipo' => 'derrota_final', 'payload' => ['costo' => $costo]]);
+            $run->update(['terminado' => true]);
+
+            return response()->json(['ok' => false, 'motivo' => 'game over', 'estado' => $this->estado($run)], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $talisman['esencia'] -= $costo;
+        $talisman['vida'] = 1; // solo la vida: recargar el talismán para volver a pelear es aparte (028)
+        $run->talisman = $talisman;
+        $run->events()->create(['tipo' => 'revivir', 'payload' => ['costo' => $costo]]);
+        $run->save();
+
+        return response()->json(['ok' => true, 'estado' => $this->estado($run)]);
+    }
+
+    /**
+     * Costo de revivir en la celda donde el run quedó caído (034): regenera el
+     * laberinto desde el seed para sacar la profundidad `$t` de esa celda (la misma
+     * que escala nivel de bicho y loot) y la pasa por Talisman::costoRevivir. Es
+     * cálculo puro de servidor (axioma 4).
+     */
+    private function costoRevivir(Run $run): int
+    {
+        $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
+        $t = MapaBuilder::dificultadCelda($matriz, $run->pos_x, $run->pos_y);
+
+        return Talisman::costoRevivir($t);
     }
 
     /**
@@ -246,6 +310,11 @@ class JugarController extends Controller
         if ($run->terminado || $run->combate !== null) {
             return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+        // Caído (034): con vida ≤ 0 el talismán está bloqueado hasta decidir revivir.
+        // Si no, curar (021) sería un revivir barato 1:1 que saltea el costo escalado.
+        if (($run->talisman['vida'] ?? 1) <= 0) {
+            return response()->json(['ok' => false, 'motivo' => 'estás caído'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $res = Talisman::aplicar($run->talisman, $datos['accion'], $datos['gemaId'] ?? null, $datos['gemaId2'] ?? null);
 
@@ -262,6 +331,11 @@ class JugarController extends Controller
      * Estado de partida que ve el cliente: la hoja de personaje y el combate
      * activo, si hay. Nunca expone la semilla de combate ni el contador de
      * pasos (axioma 4): solo lo renderizable.
+     *
+     * En el limbo "muerto, pendiente de decisión" (034) agrega `revivir.costo`
+     * para que el cliente pinte el botón de revivir. Solo ahí se paga la
+     * regeneración del mapa (para la profundidad de la celda de muerte); en el
+     * resto de los estados, `revivir` va null y no se toca el generador.
      */
     private function estado(Run $run): array
     {
@@ -274,7 +348,17 @@ class JugarController extends Controller
             ];
         }
 
-        return ['talisman' => $run->talisman, 'combate' => $combate, 'llaves' => $run->llaves ?? []];
+        $revivir = null;
+        if ($combate === null && ! $run->terminado && ($run->talisman['vida'] ?? 1) <= 0) {
+            $revivir = ['costo' => $this->costoRevivir($run)];
+        }
+
+        return [
+            'talisman' => $run->talisman,
+            'combate' => $combate,
+            'llaves' => $run->llaves ?? [],
+            'revivir' => $revivir,
+        ];
     }
 
     /**
@@ -294,6 +378,12 @@ class JugarController extends Controller
         ]);
 
         if ($run->terminado) {
+            return response()->json(['legal' => false], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        // Caído (034): no se sale del laberinto muerto. Sin esto, perder contra el
+        // guardián de la salida (que custodia la celda de salida) dejaría al mago en
+        // el limbo justo sobre la salida y salir() lo dejaría "ganar" tildado.
+        if (($run->talisman['vida'] ?? 1) <= 0) {
             return response()->json(['legal' => false], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 

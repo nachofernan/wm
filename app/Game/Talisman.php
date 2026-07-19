@@ -116,6 +116,21 @@ final class Talisman
     }
 
     /**
+     * Esencia que cuesta revivir tras caer (DECISIÓN 034), escalada por la
+     * profundidad `$t` (0.0..1.0, MapaBuilder::dificultadCelda) de la celda donde
+     * moriste: 1 cerca de la entrada, 10 en el fondo. NO escala por cantidad de
+     * revividas —son ilimitadas mientras haya esencia—: lo que muerde es el pozo
+     * compartido con recargar/subir nivel/curar, la tijera del §4 (armás todo,
+     * perdés, pagás por revivir y todavía te falta para recargar el talismán).
+     * Cálculo 100% servidor (axioma 4): no tiene espejo en JS, igual que
+     * dificultadCelda. Número de arranque (tuning).
+     */
+    public static function costoRevivir(float $t): int
+    {
+        return max(1, min(10, (int) round(1 + $t * 9)));
+    }
+
+    /**
      * Recalcula los stats derivados de la hoja desde el nivel del talismán y el
      * acople de las gemas fieldeadas con carga (modelo A, 024/025): eje
      * ofensivo fuego+aire → ataque (multiplicador `ataqueMult`), eje defensivo

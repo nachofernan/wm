@@ -284,3 +284,153 @@ test('matar al guardián de la salida (N10) termina la partida como victoria (03
     expect($run->llaves ?? [])->toBe([]);              // la salida no deja una llave
     expect(Event::where('run_id', $run->id)->where('tipo', 'ganado')->exists())->toBeTrue();
 });
+
+// --- Revivir pagando esencia (DECISIÓN 034) ---
+
+/** Talismán inicial pero caído (vida 0), con la esencia que se le pida. */
+function talismanCaido(int $esencia): array
+{
+    $t = MazeCombate::talismanInicial();
+    $t['vida'] = 0;
+    $t['esencia'] = $esencia;
+
+    return $t;
+}
+
+test('una derrota deja la corrida en el limbo (viva) y expone el costo de revivir (034)', function () {
+    // Vida 3 y una gema seca nivel 1 (castear cuesta 3 de vida) contra un bicho que
+    // sobrevive al golpe: la vida cae a 0, el monstruo no muere → derrota real.
+    $talisman = MazeCombate::talismanInicial();
+    $talisman['vida'] = 3;
+    $talisman['gemas'] = [['id' => 1, 'elemento' => 'fuego', 'nivel' => 1, 'carga' => 0, 'fieldeada' => true]];
+    $combate = MazeCombate::iniciar(1, 5, 5, 'tierra', 0, 0); // tierra N1 vida 58, aguanta
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 5, 'pos_y' => 5, 'talisman' => $talisman, 'combate' => $combate,
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/combate", ['accion' => 'atacar', 'gemaId' => 1]);
+
+    $response->assertOk()->assertJson(['ok' => true, 'resultado' => 'derrota']);
+    $run->refresh();
+    expect($run->terminado)->toBeFalse();          // la corrida NO termina (034)
+    expect($run->combate)->toBeNull();
+    expect($run->talisman['vida'])->toBeLessThanOrEqual(0);
+    expect(Event::where('run_id', $run->id)->where('tipo', 'derrota')->exists())->toBeTrue();
+    // El costo de revivir viaja en el estado del limbo.
+    $costo = $response->json('estado.revivir.costo');
+    expect($costo)->toBeGreaterThanOrEqual(1)->toBeLessThanOrEqual(10);
+});
+
+test('revivir descuenta la esencia, pone la vida en 1 y no toca el resto del talismán (034)', function () {
+    // Caído en una celda cualquiera, con esencia de sobra. Cargo las gemas fieldeadas
+    // a media asta para comprobar que revivir NO las recarga (eso es aparte, 028).
+    $talisman = talismanCaido(20);
+    foreach ($talisman['gemas'] as &$g) {
+        $g['carga'] = 1;
+    }
+    unset($g);
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 13, 'pos_y' => 27, 'talisman' => $talisman, // (13,27) es el fondo del seed 1
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/revivir");
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    $run->refresh();
+    expect($run->terminado)->toBeFalse();
+    expect($run->talisman['vida'])->toBe(1);                 // volvés con 1, no más
+    expect($run->talisman['esencia'])->toBeLessThan(20);     // pagaste el costo
+    expect($run->talisman['esencia'])->toBeGreaterThanOrEqual(10); // costo ≤ 10
+    // Las gemas siguen a media carga: revivir no recarga el talismán.
+    expect(collect($run->talisman['gemas'])->every(fn ($g) => $g['carga'] === 1))->toBeTrue();
+    expect(Event::where('run_id', $run->id)->where('tipo', 'revivir')->exists())->toBeTrue();
+});
+
+test('revivir sin esencia suficiente es game over: termina la corrida y graba derrota_final (034)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 13, 'pos_y' => 27, 'talisman' => talismanCaido(0), // 0 esencia
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/revivir");
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'game over']);
+    $run->refresh();
+    expect($run->terminado)->toBeTrue();
+    expect(Event::where('run_id', $run->id)->where('tipo', 'derrota_final')->exists())->toBeTrue();
+});
+
+test('revivir con la vida en pie es rechazado: no hay nada que revivir (034)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(), // vida 40
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/revivir");
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'nada que revivir']);
+    expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
+});
+
+test('revivir con un combate abierto es rechazado (034)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'talisman' => talismanCaido(20),
+        'combate' => MazeCombate::iniciar(1, 5, 5, 'tierra', 0, 0),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/revivir");
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
+});
+
+test('estando caído no se puede tocar el talismán: curar no es un revivir barato (034)', function () {
+    // El hueco que cerró la sección A: con combate cerrado y vida 0, curar (021)
+    // habría comprado vida 1:1 salteando el costo escalado de revivir.
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 5, 'pos_y' => 5, 'talisman' => talismanCaido(20),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/talisman", ['accion' => 'curar']);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'estás caído']);
+    expect($run->fresh()->talisman['vida'])->toBe(0); // sigue caído
+});
+
+test('estando caído no se puede salir del laberinto (034)', function () {
+    // seed 1 → salida en (13,27). Caído sobre la salida (perdiste contra su guardián)
+    // no se gana tildado: salir es ilegal hasta revivir.
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 1, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 13, 'pos_y' => 27, 'talisman' => talismanCaido(20),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/salir", ['x' => 13, 'y' => 27]);
+
+    $response->assertStatus(422)->assertJson(['legal' => false]);
+    expect($run->fresh()->terminado)->toBeFalse();
+});
+
+test('revivir tras perder contra un guardián lo devuelve a vida completa, sin llave (034)', function () {
+    // Caído en la celda del guardián de la primera llave (seed 42 → (11,1)), sin
+    // llaves. Revivo y vuelvo a abrir el guardián: MazeCombate::guardian lo
+    // reconstruye del seed a full vida, y no se otorgó ninguna llave por perder.
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'pos_x' => 11, 'pos_y' => 1, 'talisman' => talismanCaido(20),
+    ]);
+
+    $this->postJson("/jugar/{$run->token}/revivir")->assertOk();
+    expect($run->fresh()->talisman['vida'])->toBe(1);
+
+    $response = $this->postJson("/jugar/{$run->token}/guardian", ['indice' => 0, 'x' => 11, 'y' => 1, 'pelear' => true]);
+
+    $response->assertOk();
+    $m = $response->json('estado.combate.monstruo');
+    expect($m['boss'])->toBeTrue();
+    expect($m['vida'])->toBe($m['vidaMax']);   // guardián fresco: vida completa
+    expect($run->fresh()->llaves ?? [])->toBe([]); // perder no regaló la llave
+});
