@@ -134,6 +134,9 @@ export function game() {
         drop: null,
         bichoResuelto: null, // monstruo del último combate cerrado: se muestra en la
                              // pantalla de victoria/derrota (el server ya mandó combate:null)
+        revivirCosto: null, // costo en esencia de revivir tras caer (034): lo manda el
+                            // servidor en estado.revivir SOLO en el limbo (muerto sin
+                            // decidir). null = no estás caído. El servidor es la autoridad.
         consola: [],
         // Una llamada al servidor en vuelo: bloquea acciones concurrentes y prende
         // el spinner. accionActiva marca CUÁL botón gira (DECISIONES.md 023).
@@ -157,6 +160,10 @@ export function game() {
             this.leerConfig(); // preferencias de display (caminoOpaco), persistidas global
             this.talisman = estado.talisman;
             this.combate = estado.combate;
+            this.revivirCosto = estado.revivir ? estado.revivir.costo : null;
+            // Recarga en el limbo (034): si el estado inicial ya viene caído (moriste
+            // y no decidiste), se abre la pantalla de derrota para revivir/aceptar.
+            if (this.muerto()) this.resultado = 'derrota';
             this.registrar('Cruzás el umbral. El laberinto se cierra a tu espalda — WASD o flechas para avanzar.', 'sistema');
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
@@ -401,8 +408,10 @@ export function game() {
         mover(evento) {
             // No se camina con un combate abierto, un guardián en staging (032), un
             // drop sin resolver, ni una llamada al servidor en vuelo: la pelea frena
-            // la marcha. El movimiento en sí ya no espera al servidor (022).
-            if (this.terminado || this.combate || this.guardian || this.resultado || this.cargando) return;
+            // la marcha. El movimiento en sí ya no espera al servidor (022). Caído
+            // (034), tampoco: el limbo congela la marcha hasta revivir o aceptar —
+            // muerto() cubre el caso de recarga, donde resultado todavía no está seteado.
+            if (this.terminado || this.combate || this.guardian || this.resultado || this.cargando || this.muerto()) return;
 
             const direccion = TECLAS[evento.key];
             if (!direccion) return;
@@ -519,8 +528,8 @@ export function game() {
         /**
          * Empuja una línea a la bitácora de combate. `tipo` es la categoría que la
          * vista usa para colorear/destacar (sistema, peligro, combate, critico,
-         * bloqueo, arremete, botin, llave, guardian, huida, victoria, derrota,
-         * rechazo). El texto ya viene armado con su ícono de línea si corresponde.
+         * bloqueo, arremete, botin, llave, guardian, huida, martir, victoria,
+         * derrota, rechazo). El texto ya viene armado con su ícono si corresponde.
          */
         registrar(txt, tipo = 'sistema') {
             this.consola.push({ txt, tipo });
@@ -531,6 +540,7 @@ export function game() {
             if (!estado) return;
             this.talisman = estado.talisman;
             this.combate = estado.combate;
+            this.revivirCosto = estado.revivir ? estado.revivir.costo : null;
             // Las llaves las manda el servidor (032). Redibujo solo si cambió alguna
             // (una puerta que se abre), no en cada acción de combate.
             if (estado.llaves && this.sincronizarLlaves(estado.llaves)) this.dibujar();
@@ -655,7 +665,9 @@ export function game() {
             this.resultado = datos.resultado;
             this.drop = datos.drop;
             if (datos.resultado === 'victoria' || datos.resultado === 'derrota') this.bichoResuelto = bicho;
-            if (datos.resultado === 'derrota') this.terminado = true;
+            // Derrota (034): la corrida NO termina — quedás caído, pendiente de revivir
+            // o aceptar. La pantalla de derrota (resultado) ya congela la marcha; el
+            // costo de revivir viene en estado.revivir (lo tomó aplicarEstado).
             // Vencer al guardián de la salida (032) es ganar el laberinto: el server
             // ya marcó la corrida terminada; el cliente muestra la victoria final.
             if (datos.resultado === 'victoria' && bicho?.indice === INDICE_SALIDA) this.terminado = true;
@@ -664,6 +676,28 @@ export function game() {
         atacar(id) { this.accionCombate('atacar', id); },
         bloquear(id) { this.accionCombate('bloquear', id); },
         escapar() { this.accionCombate('escapar'); },
+
+        // ── Revivir tras caer (034) ────────────────────────────────────────
+        // Estado "caído": vida en 0, sin combate ni corrida terminada. La verdad
+        // es del servidor; esto solo decide qué mostrar y qué congelar en el cliente.
+        muerto() { return !!this.talisman && this.talisman.vida <= 0 && !this.combate && !this.terminado; },
+
+        // El botón de revivir solo aparece si el costo llegó (estás caído) y la
+        // esencia alcanza. El servidor valida de verdad; esto evita ofrecer lo imposible.
+        puedeRevivir() { return this.revivirCosto !== null && !!this.talisman && this.talisman.esencia >= this.revivirCosto; },
+
+        // Paga el costo y volvés con 1 de vida (el talismán queda como estaba: recargar
+        // las gemas es aparte, 028). Si el server rechaza (sin esencia / game over),
+        // pedir() ya registró el motivo y no se toca nada.
+        async revivir() {
+            const datos = await this.pedir(`/jugar/${this.token}/revivir`, {}, 'revivir');
+            if (!datos) return;
+            this.aplicarEstado(datos.estado);
+            this.resultado = null;
+            this.drop = null;
+            this.bichoResuelto = null;
+            this.registrar('Volvés del borde con 1 de vida. El talismán quedó como lo dejaste — recargá antes de seguir.', 'victoria');
+        },
 
         // ── Talismán: armar el loadout entre peleas ────────────────────────
         async accionTalisman(accion, gemaId = null, gemaId2 = null) {

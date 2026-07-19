@@ -913,3 +913,51 @@ sílfide son tuning de sesión de juego, no rediseño. **Se descartó:** tapar t
 (se quiere comparar mientras se ajusta el resto). **Cascada:** ninguna — nada de esto toca `MazeGenerator`, el
 PRNG ni el test de paridad. Los tests de `MazeCombate`/`JugarController` que asserteaban 3/5/7/9 se actualizaron
 a 4/6/8/10.
+
+## 034 — Golpe mártir y revivir pagando esencia: la muerte deja de ser el final — 2026-07-19
+**Decisión:** Dos reglas de vida/muerte en combate, ninguna toca el generador ni la paridad.
+
+- **Golpe mártir.** Si tu ataque mata al monstruo *y* el pago en vida de ese mismo golpe (la penalidad por
+  castear sin carga, 021) te habría dejado en 0 o menos, **sobrevivís clavado en 1 de vida**, no en 0, con su
+  propia línea de log (`tipo` `martir`). Antes era un accidente de orden: la vida se clampeaba a 0 y el combate
+  cerraba en victoria sin volver a mirarla, así que quedabas "vivo" en 0 y el endpoint `curar` (021, exige
+  combate cerrado) te dejaba comprar vida y seguir. Ahora es regla explícita. Vive **antes** del despacho
+  `victoria() → victoriaBoss()`, así vale igual para un bicho de ambiente y para un guardián. Efecto colateral
+  buscado: con vida ≥ 1 garantizada en toda victoria, **`vida ≤ 0` pasa a implicar siempre derrota** — el
+  invariante que hace innecesaria una columna nueva para el revivir.
+
+- **Revivir pagando esencia.** La derrota ya **no termina la corrida**. Caés en un limbo "muerto, pendiente de
+  decisión" (`combate = null`, `vida ≤ 0`, `!terminado`) y podés **revivir pagando esencia**, **ilimitado
+  mientras haya esencia** (sin tope de cantidad). El costo **escala con la profundidad** de la celda donde
+  moriste —la misma `t` que escala nivel de bicho (029) y loot (027)—: 1 esencia en la entrada, 10 en el fondo,
+  no por cantidad de revividas. `Talisman::costoRevivir(t)` es puro y 100% servidor (axioma 4, sin espejo JS,
+  igual que `dificultadCelda`). Revivir te devuelve con **1 de vida y no toca nada más del talismán**: recargar
+  las gemas para volver a pelear es el endpoint `recargar` (028), aparte — la tijera es que el mismo pozo de
+  esencia paga revivir *y* recargar. Si la esencia **no alcanza** el costo, es **game over real**: ahí sí la
+  corrida termina (evento `derrota_final`). Aplica igual a ambiente y a guardián.
+
+**Revisa la 032** (append-only, no la reescribe): la 032 cerraba "perder contra un boss = muerte, sin red, sin
+escape". Sigue sin haber *escape* de un guardián (no podés huir del combate), pero **un boss ahora es
+revivible** como cualquier muerte — igual que la 033 matizó en espíritu a la 032 sin tocarla. El guardián no
+guarda estado fuera del combate activo: `MazeCombate::guardian()` lo reconstruye del seed a vida completa en
+cada encuentro fresco, así que revivir y volver a pelearlo lo enfrenta entero y sin llave otorgada, sin
+construir nada extra.
+
+**Por qué:** El talismán es a la vez poder y vida (hipótesis del §2/DISENO): un mago maximizado es un mago que
+está por morir, y morir en el fondo tras armar todo era un acantilado sin gradiente. El revivir con costo
+escalado convierte la muerte profunda en una **decisión económica** —pagás caro por seguir, y capaz revivís
+pero te quedás sin esencia para recargar— en vez de un corte seco. El golpe mártir premia el cálculo fino
+(matar justo cuando te desangrás) en lugar de castigarlo con una muerte que el jugador no eligió.
+
+**Se descartó:** tope de cantidad de revividas y costo por cantidad (se eligió costo por profundidad,
+ilimitado — la esencia ya es el tope natural); una columna de estado para "muerto sin decidir" (el invariante
+`vida ≤ 0 ⇒ derrota` del golpe mártir la hace innecesaria); resetear/recargar el talismán al revivir (la vida
+se paga sola; recargar es gasto aparte, a propósito).
+
+**Cascada:** ninguna sobre `MazeGenerator`, el PRNG ni el test de paridad. Dentro del servidor sí: con la
+muerte dejando la corrida viva, `talisman()` y `salir()` se **bloquean con `vida ≤ 0`** (si no, `curar` sería un
+revivir barato 1:1 que saltea el costo escalado, y perder contra el guardián de la salida —que custodia la
+celda de salida— dejaría "ganar" tildado desde el limbo). Cliente: la pantalla de derrota ofrece revivir cuando
+la esencia alcanza; el movimiento se congela con `vida ≤ 0` igual que con `terminado`; el costo viaja en
+`estado.revivir` solo en el limbo. El test de `JugarController` que antes asumía `terminado = true` tras una
+derrota cambia: ahora la corrida queda viva.

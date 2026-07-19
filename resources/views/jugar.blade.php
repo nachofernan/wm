@@ -232,9 +232,13 @@
         .modelo-stats { display: flex; justify-content: center; gap: 12px; font-size: 12px; color: var(--tenue); margin-top: 6px; }
         .modelo-hint { margin-top: 10px; font-size: 12px; color: var(--vida); font-weight: 600; }
         /* Pie de acciones de la maqueta: escape (en combate) o seguir/reiniciar (cierre). */
-        .modelo-acciones { margin-top: 12px; display: flex; justify-content: center; }
+        .modelo-acciones { margin-top: 12px; display: flex; justify-content: center; gap: 8px; }
         .modelo-acciones .escape { color: var(--esencia); }
         .modelo-acciones a { text-decoration: none; }
+        /* Nota del costo de revivir (034): el precio escala con la profundidad. */
+        .revivir-info { margin: 8px 0 2px; font-size: 12px; color: var(--tenue); line-height: 1.5; }
+        .revivir-info strong { color: var(--esencia); }
+        .revivir-info .sin-esencia { color: var(--vida); }
         /* Título de cierre sobre la maqueta (030): ¡Cayó! / Derrota / ¡Saliste! */
         .final-titulo { font-size: 20px; font-weight: 700; margin: 8px 0 2px; }
         .final-titulo.victoria { color: var(--esencia); }
@@ -265,6 +269,12 @@
         .consola .linea.t-bloqueo  { color: #6fb7dc; }
         .consola .linea.t-arremete { color: #e0805f; }
         .consola .linea.t-huida    { color: #8fb0a0; font-style: italic; }
+        /* Golpe mártir (034): matás al morir y caés de pie en 1. Ámbar urgente,
+           en negrita con un halo tenue — sobreviviste raspando, que se sienta. */
+        .consola .linea.t-martir {
+            color: #ffb454; font-weight: 700;
+            text-shadow: 0 0 7px rgba(255, 150, 40, 0.5);
+        }
         .consola .linea.t-botin    { color: #7ad19a; }
         .consola .linea.t-llave    { color: #f0b429; font-weight: 600; }
         .consola .linea.t-derrota  { color: #e05a5a; font-weight: 600; }
@@ -407,18 +417,31 @@
                     </div>
                 </template>
 
-                <!-- Derrota: el bicho que te mató + reiniciar -->
+                <!-- Derrota: caés, pero la corrida no termina (034) — revivir pagando
+                     esencia, o aceptar la derrota y arrancar de nuevo. -->
                 <template x-if="!combate && resultado === 'derrota'">
                     <div class="modelo">
                         <div class="modelo-fig" :class="bichoResuelto?.elemento" x-text="bichoResuelto ? bichoResuelto.nombre.charAt(0) : ''"></div>
-                        <div class="final-titulo derrota">Derrota</div>
+                        <div class="final-titulo derrota">Caíste</div>
                         <div class="modelo-nombre" x-text="bichoResuelto?.nombre"></div>
                         <div class="modelo-sub">
                             <span class="punto" :class="bichoResuelto?.elemento"></span>
                             <span x-text="bichoResuelto?.elemento"></span> · <span x-text="bichoResuelto ? `N${bichoResuelto.nivel}` : ''"></span>
                         </div>
+                        <!-- El costo escala con la profundidad (034): morir hondo cuesta caro. -->
+                        <div class="revivir-info" x-show="revivirCosto !== null">
+                            <template x-if="puedeRevivir()">
+                                <span>Revivir cuesta <strong x-text="revivirCosto"></strong> esencia (tenés <span x-text="talisman?.esencia ?? 0"></span>). Volvés con 1 de vida — el talismán queda como está.</span>
+                            </template>
+                            <template x-if="!puedeRevivir()">
+                                <span class="sin-esencia">No te alcanza la esencia para revivir (<span x-text="talisman?.esencia ?? 0"></span> de <span x-text="revivirCosto"></span>). Es el final del camino.</span>
+                            </template>
+                        </div>
                         <div class="modelo-acciones">
-                            <a href="{{ route('jugar.crear') }}"><button class="primario">nueva partida</button></a>
+                            <template x-if="puedeRevivir()">
+                                <button class="primario" @click="revivir()" :disabled="cargando">revivir (−<span x-text="revivirCosto"></span> esencia)</button>
+                            </template>
+                            <a href="{{ route('jugar.crear') }}"><button :class="puedeRevivir() ? '' : 'primario'">nueva partida</button></a>
                         </div>
                     </div>
                 </template>

@@ -112,13 +112,23 @@ El talismán **persiste entre mazes**: lo que ganás en una corrida se **banca a
 no al farmear. Salir con las manos vacías es sobrevivir; ganar es salir *con algo* — el
 talismán más grande, gemas para el maze siguiente.
 
-**La muerte** resetea el maze a su estado de entrada y restaura las gemas al loadout con el que
-entraste: se pierde el progreso no bankeado de esa corrida. Revividas como tope diferido
-(cantidad ❓); al agotarlas, game over.
+**La muerte no es el final: caés en un limbo y podés revivir pagando esencia** (DECISIÓN 034).
+Es **ilimitado mientras haya esencia** — no hay tope de revividas. El costo **escala con la
+profundidad** de la celda donde moriste (1 esencia cerca de la entrada, 10 en el fondo), no con
+cuántas veces reviviste. Revivir te devuelve con **1 de vida** y **no resetea el talismán**: las
+gemas quedan como estaban, así que recargarlas para volver a pelear cuesta esencia **aparte**
+(028). Esa es la tijera: el mismo pozo de esencia paga revivir *y* recargar, y armaste todo,
+perdiste, pagaste por revivir y todavía te falta para dejar el talismán listo. El **game over
+real** llega cuando la esencia no alcanza el costo de revivir: recién ahí la corrida termina.
+Aplica igual a una muerte de ambiente y a una contra un guardián (revisa la 032, ver DECISIONES).
+
+El **reset de la muerte-sin-revivir** —resetear el maze a su estado de entrada y restaurar las
+gemas al loadout con el que entraste, perdiendo el progreso no bankeado— sigue siendo el modelo
+para la secuencia de mazes cuando exista (011/032): revivir opera *dentro* de una corrida, no
+reemplaza lo que pasa *entre* corridas.
 
 - ❓ Qué es exactamente "con algo" y si hay grados de victoria.
 - ❓ Dónde termina la secuencia y qué es la victoria final (engancha con la historia, §8).
-- ❓ Cantidad de revividas y qué resetea el game over.
 
 ## 5. Los monstruos 🔒 (combate telegrafiado; encuentros por celda) 
 
