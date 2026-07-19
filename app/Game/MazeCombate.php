@@ -196,7 +196,10 @@ final class MazeCombate
      *
      * @return array{
      *     combate: array|null, talisman: array, resultado: string|null,
-     *     drop: array|null, error: string|null, log: list<array{txt:string,crit:bool}>
+     *     drop: array|null, error: string|null, log: list<array{txt:string,tipo:string}>
+     *
+     * `tipo` es la categoría de la línea para la bitácora del cliente: 'ataque',
+     * 'critico', 'bloqueo', 'arremete', 'botin', 'llave', 'huida' o 'derrota'.
      * }
      */
     public static function resolver(array $combate, array $talisman, string $accion, ?int $gemaId): array
@@ -220,7 +223,9 @@ final class MazeCombate
 
             if ($g['carga'] >= $r['costoEsencia']) {
                 self::gastarGema($talisman, $gemaId, $r['costoEsencia']);
-                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} — {$r['dano']} de daño ({$r['matchup']}, −{$r['costoEsencia']} ⚡)", 'crit' => $r['critico']];
+                $log[] = $r['critico']
+                    ? ['txt' => "★ ¡CRÍTICO! Tu {$g['elemento']} (nv.{$g['nivel']}) desgarra por {$r['dano']} — " . self::matchupFrase($r['matchup']) . ". −{$r['costoEsencia']} esencia.", 'tipo' => 'critico']
+                    : ['txt' => "Canalizás {$g['elemento']} (nv.{$g['nivel']}): {$r['dano']} de daño, " . self::matchupFrase($r['matchup']) . ". −{$r['costoEsencia']} esencia.", 'tipo' => 'ataque'];
             } else {
                 // Carga insuficiente: se gasta la que haya y el faltante se paga
                 // con vida a la penalidad de la 021 (cubre la gema extinta y el
@@ -231,8 +236,10 @@ final class MazeCombate
                     self::gastarGema($talisman, $gemaId, $g['carga']);
                 }
                 $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
-                $detalle = $g['carga'] > 0 ? "{$g['carga']} ⚡ + {$costoVida} de vida" : "{$costoVida} de vida";
-                $log[] = ['txt' => "atacás con {$g['elemento']} n{$g['nivel']} sin carga — {$r['dano']} de daño ({$r['matchup']}), pagás {$detalle}", 'crit' => $r['critico']];
+                $detalle = $g['carga'] > 0 ? "{$g['carga']} de esencia y {$costoVida} de vida" : "{$costoVida} de vida";
+                $log[] = $r['critico']
+                    ? ['txt' => "★ ¡CRÍTICO a pulso! Tu {$g['elemento']} (nv.{$g['nivel']}) seca golpea por {$r['dano']} — " . self::matchupFrase($r['matchup']) . ". Lo pagás con {$detalle}.", 'tipo' => 'critico']
+                    : ['txt' => "Fuerzas {$g['elemento']} (nv.{$g['nivel']}) sin carga: {$r['dano']} de daño, " . self::matchupFrase($r['matchup']) . ". Lo pagás con {$detalle}.", 'tipo' => 'ataque'];
             }
 
             $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
@@ -271,10 +278,10 @@ final class MazeCombate
             $talisman['vida'] = max(0, $talisman['vida'] - $costoVida);
 
             if ($deficit === 0) {
-                $log[] = ['txt' => "bloqueás con {$g['elemento']} — golpe frenado (−{$costo} ⚡)", 'crit' => false];
+                $log[] = ['txt' => "Alzás {$g['elemento']} y frenás el golpe en seco. −{$costo} esencia.", 'tipo' => 'bloqueo'];
             } else {
-                $detalle = $cargaPaga > 0 ? "{$cargaPaga} ⚡ + {$costoVida} de vida" : "{$costoVida} de vida";
-                $log[] = ['txt' => "bloqueás con {$g['elemento']} sin carga para todo — pagás {$detalle}", 'crit' => false];
+                $detalle = $cargaPaga > 0 ? "{$cargaPaga} de esencia y {$costoVida} de vida" : "{$costoVida} de vida";
+                $log[] = ['txt' => "Alzás {$g['elemento']}, pero la carga no alcanza: absorbés el golpe con {$detalle}.", 'tipo' => 'bloqueo'];
             }
 
             if ($talisman['vida'] <= 0) {
@@ -298,7 +305,7 @@ final class MazeCombate
                 return $error('esencia insuficiente para escapar');
             }
             $talisman['esencia'] -= $costo;
-            $log[] = ['txt' => "escapás de {$combate['monstruo']['nombre']} (−{$costo} ✦)", 'crit' => false];
+            $log[] = ['txt' => "Te zafás de {$combate['monstruo']['nombre']} y desaparecés en la oscuridad. −{$costo} esencia.", 'tipo' => 'huida'];
 
             return self::huida($talisman, $log);
         }
@@ -328,7 +335,7 @@ final class MazeCombate
         $m = $combate['monstruo'];
         $combate['turno'] = 'defensa';
         $combate['entrante'] = ['elemento' => $m['elemento'], 'peso' => $m['peso']];
-        $log[] = ['txt' => "{$m['nombre']} arremete ({$m['elemento']}, peso {$m['peso']}) — bloqueá con una gema", 'crit' => false];
+        $log[] = ['txt' => "{$m['nombre']} arremete ({$m['elemento']}, peso {$m['peso']}) — bloqueá con una gema o lo pagás con vida.", 'tipo' => 'arremete'];
 
         return self::estado($combate, $talisman, $log);
     }
@@ -360,8 +367,8 @@ final class MazeCombate
         }
         $talisman['bichosCaidos']++;
 
-        $lista = implode(', ', array_map(fn ($g) => "{$g['elemento']} n{$g['nivel']}", $drops));
-        $log[] = ['txt' => "¡cae {$combate['monstruo']['nombre']}! dropea {$lista} → al inventario", 'crit' => false];
+        $lista = implode(', ', array_map(fn ($g) => "{$g['elemento']} nv.{$g['nivel']}", $drops));
+        $log[] = ['txt' => "☠ Cae {$combate['monstruo']['nombre']}. Entre los restos hallás {$lista} → al inventario.", 'tipo' => 'botin'];
 
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
@@ -395,10 +402,14 @@ final class MazeCombate
         $talisman['gemasJuntadas']++;
         $talisman['bichosCaidos']++;
 
-        $premio = $m['indice'] === count(self::NIVELES_GUARDIAN) - 1
-            ? 'el camino a la salida queda libre'
-            : 'conseguís la llave';
-        $log[] = ['txt' => "¡cae {$m['nombre']}! {$premio} y dropea {$gema['elemento']} n{$gema['nivel']} → al inventario", 'crit' => false];
+        $esSalida = $m['indice'] === count(self::NIVELES_GUARDIAN) - 1;
+        $premio = $esSalida
+            ? 'El camino a la salida queda libre'
+            : 'La llave es tuya';
+        $log[] = [
+            'txt' => "🗝 Cae {$m['nombre']}. {$premio}, y de su cuerpo brota {$gema['elemento']} nv.{$gema['nivel']} → al inventario.",
+            'tipo' => 'llave',
+        ];
 
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'victoria',
@@ -421,7 +432,7 @@ final class MazeCombate
     /** Vida en 0: cierra el combate como derrota. */
     private static function derrota(array $combate, array $talisman, array $log): array
     {
-        $log[] = ['txt' => '— derrota: vida en 0 —', 'crit' => false];
+        $log[] = ['txt' => '✖ Tu vida se apaga. Caés en el laberinto y la oscuridad te reclama.', 'tipo' => 'derrota'];
 
         return [
             'combate' => null, 'talisman' => $talisman, 'resultado' => 'derrota',
@@ -436,6 +447,20 @@ final class MazeCombate
             'combate' => $combate, 'talisman' => $talisman, 'resultado' => null,
             'drop' => null, 'error' => null, 'log' => $log,
         ];
+    }
+
+    /**
+     * Traduce el matchup crudo del CombatResolver ('ventaja'/'reves'/'neutral')
+     * a la frase que lee el jugador en la bitácora. Solo cosmético: el número de
+     * daño ya viene resuelto con el multiplicador aplicado.
+     */
+    private static function matchupFrase(string $matchup): string
+    {
+        return match ($matchup) {
+            'ventaja' => 'con ventaja elemental',
+            'reves' => 'a la contra, con desventaja',
+            default => 'sin ventaja de elemento',
+        };
     }
 
     /**

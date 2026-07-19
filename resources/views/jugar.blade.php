@@ -253,8 +253,29 @@
             font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.6;
             height: 160px; overflow-y: auto; color: #a9d5b0;
         }
-        .consola .linea { white-space: pre-wrap; }
-        .consola .linea.combate { color: #e0c04a; }
+        .consola .linea { white-space: pre-wrap; margin: 1px 0; }
+        /* Categorías de la bitácora (game.js registrar / MazeCombate log). El color
+           carga el significado: peligro y arremete avisan, crítico grita, botín y
+           llave premian. La consola cuenta la historia de la partida. */
+        .consola .linea.t-sistema  { color: #7f8b93; }
+        .consola .linea.t-peligro  { color: #e0a54a; }
+        .consola .linea.t-guardian { color: #c58ad6; font-weight: 600; }
+        .consola .linea.t-combate  { color: #e0c04a; }
+        .consola .linea.t-ataque   { color: #e0c04a; }
+        .consola .linea.t-bloqueo  { color: #6fb7dc; }
+        .consola .linea.t-arremete { color: #e0805f; }
+        .consola .linea.t-huida    { color: #8fb0a0; font-style: italic; }
+        .consola .linea.t-botin    { color: #7ad19a; }
+        .consola .linea.t-llave    { color: #f0b429; font-weight: 600; }
+        .consola .linea.t-derrota  { color: #e05a5a; font-weight: 600; }
+        .consola .linea.t-victoria { color: #7ee0a0; font-weight: 600; }
+        .consola .linea.t-rechazo  { color: #d16a6a; font-style: italic; }
+        /* El crítico tiene que saltar a la vista: dorado brillante, en negrita y con
+           un halo tenue. Es el momento que el jugador quiere ver. */
+        .consola .linea.t-critico {
+            color: #ffdd73; font-weight: 700; letter-spacing: 0.02em;
+            text-shadow: 0 0 8px rgba(255, 210, 90, 0.55);
+        }
         /* Mismo ancho que la columna del inventario (360px): la card queda alineada
            justo debajo, y la consola ocupa el ancho del mapa + columna izquierda. */
         .caja.juego { width: 360px; flex-shrink: 0; }
@@ -579,7 +600,7 @@
     <div class="pie">
         <div class="consola" x-ref="consolaBox" x-effect="consola.length; $nextTick(() => { if ($refs.consolaBox) $refs.consolaBox.scrollTop = $refs.consolaBox.scrollHeight; })">
             <template x-for="(l, i) in consola" :key="i">
-                <div class="linea" :class="l.includes('⚔') || l.includes('daño') || l.includes('bloqueás') || l.includes('cae') ? 'combate' : ''" x-text="l"></div>
+                <div class="linea" :class="'t-' + l.tipo" x-text="l.txt"></div>
             </template>
         </div>
         <div class="caja juego">

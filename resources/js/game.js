@@ -35,9 +35,6 @@ const ELEMENTOS = ['fuego', 'agua', 'tierra', 'aire'];
 // Números de arranque espejo de CombatResolver::DEFAULTS — solo para el preview.
 const COMBATE = { F: 3, K: 50, ventaja: 1.5, neutral: 1.0, reves: 0.5, defVentaja: 0.5, defNeutral: 1.0, defReves: 2.0, vidaPorEsencia: 3 };
 
-// Radio de visión total alrededor del mago (Chebyshev). Fuera de acá está la niebla.
-const RADIO_VISION = 1;
-
 // Clave del guardado de navegación en localStorage, por token. La posición y la
 // niebla explorada son puro cliente (nunca viajan al servidor, axioma 3), así que
 // sin esto una recarga te devuelve a la entrada. Es por partida: un token nuevo
@@ -160,7 +157,7 @@ export function game() {
             this.leerConfig(); // preferencias de display (caminoOpaco), persistidas global
             this.talisman = estado.talisman;
             this.combate = estado.combate;
-            this.registrar('entrás al laberinto. WASD o flechas para caminar.');
+            this.registrar('Cruzás el umbral. El laberinto se cierra a tu espalda — WASD o flechas para avanzar.', 'sistema');
             this.matriz = generarLaberinto(seed, ancho, alto);
             this.marcas = calcularMarcas(this.matriz);
             this.distancias = distanciasEntrada(this.matriz); // panel de celda (027)
@@ -190,9 +187,10 @@ export function game() {
 
             this.dibujarCampo(ctx);
 
-            ctx.strokeStyle = 'black';
-            ctx.lineWidth = 2;
-
+            // Un solo trazo se pierde según el fondo: marrón sobre el piso claro
+            // se ve, pero sobre la niebla negra del borde se funde. Se traza dos
+            // veces sobre el mismo path — halo claro ancho atrás, núcleo oscuro
+            // angosto encima — así el muro contrasta contra cualquier fondo.
             ctx.beginPath();
             this.matriz.forEach((fila, y) => {
                 fila.forEach((celda, x) => {
@@ -204,6 +202,11 @@ export function game() {
                     if (celda.O) { ctx.moveTo(px, py); ctx.lineTo(px, py + CELDA); }
                 });
             });
+            ctx.strokeStyle = '#e8dfc8';
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.strokeStyle = '#3b2413';
+            ctx.lineWidth = 2;
             ctx.stroke();
 
             // La niebla tapa el laberinto (paredes + tinte de encuentro) donde no
@@ -250,22 +253,44 @@ export function game() {
             ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
         },
 
-        /** ¿La celda (x,y) está dentro del radio de visión total del mago? */
+        /**
+         * ¿La celda (x,y) está a la vista del mago? La visión ya no es un
+         * cuadrado geométrico: es espacial. Solo se ve a lo largo de los ejes
+         * x/y (una cruz, no un cuadrado — las diagonales no se ven directo),
+         * y corre en línea recta hasta la primera pared: un pasillo abierto
+         * se ve entero, por largo que sea.
+         */
         visible(x, y) {
-            return Math.max(Math.abs(x - this.mago.x), Math.abs(y - this.mago.y)) <= RADIO_VISION;
+            const mx = this.mago.x, my = this.mago.y;
+            if (x === mx && y === my) return true;
+            if (x !== mx && y !== my) return false; // fuera de los ejes: no hay línea de vista
+
+            if (y === my) {
+                const paso = x > mx ? 1 : -1;
+                for (let cx = mx; cx !== x; cx += paso) {
+                    if (paso === 1 ? this.matriz[my][cx].E : this.matriz[my][cx].O) return false;
+                }
+                return true;
+            }
+
+            const paso = y > my ? 1 : -1;
+            for (let cy = my; cy !== y; cy += paso) {
+                if (paso === 1 ? this.matriz[cy][mx].S : this.matriz[cy][mx].N) return false;
+            }
+            return true;
         },
 
         /**
          * Niebla de guerra (docs/DECISIONES.md): el mapa arranca en negro; solo
-         * se ve el radio del mago (RADIO_VISION alrededor) con detalle completo,
-         * y el rastro ya caminado queda en gris. Las marcas se dibujan aparte,
-         * por encima, así los objetivos (llaves/puertas/salida) se ven desde el
-         * arranque aunque no hayas llegado.
+         * se ve la cruz de ejes del mago (cortada por la primera pared) con
+         * detalle completo, y el rastro ya caminado queda en gris. Las marcas
+         * se dibujan aparte, por encima, así los objetivos (llaves/puertas/
+         * salida) se ven desde el arranque aunque no hayas llegado.
          */
         dibujarNiebla(ctx) {
             for (let y = 0; y < this.alto; y++) {
                 for (let x = 0; x < this.ancho; x++) {
-                    if (this.visible(x, y)) continue; // radio: detalle completo
+                    if (this.visible(x, y)) continue; // cruz de ejes: detalle completo
                     if (this.visitadas[`${x},${y}`]) {
                         // Rastro explorado. Opaco (033): gris sólido que tapa paredes
                         // y tinte — ves el camino hecho, no cómo volver. Apagado: velo
@@ -278,6 +303,12 @@ export function game() {
                     } else {
                         ctx.fillStyle = '#0a0a0d'; // no explorado: negro
                         ctx.fillRect(x * CELDA, y * CELDA, CELDA, CELDA);
+                        // Cuadrícula ínfima, apenas más clara que el negro: sin esto
+                        // lo no explorado es un vacío plano; con esto se insinúa que
+                        // ahí hay celdas, no nada.
+                        ctx.strokeStyle = '#1c1c22';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(x * CELDA + 0.5, y * CELDA + 0.5, CELDA - 1, CELDA - 1);
                     }
                 }
             }
@@ -442,7 +473,7 @@ export function game() {
             if (!datos) return;
             this.aplicarEstado(datos.estado);
             this.movimientos.push({ dir: 'encuentro', x, y });
-            this.registrar(`⚔ (${x},${y}) riesgo ${prob}% · ¡te salta ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento})!`);
+            this.registrar(`⚠ Riesgo ${prob}% en (${x},${y}) — te embosca ${this.combate.monstruo.nombre} (${this.combate.monstruo.elemento}).`, 'peligro');
         },
 
         // ── Guardianes de llave y salida (docs/DECISIONES.md 032) ──────────
@@ -459,7 +490,7 @@ export function game() {
             const cual = indice === INDICE_SALIDA
                 ? 'el guardián de la salida'
                 : `el guardián de la ${['primera', 'segunda', 'tercera'][indice] ?? `${indice + 1}ª`} llave`;
-            this.registrar(`✦ ${cual}: ${this.guardian.nombre} (${this.guardian.elemento}) N${this.guardian.nivel} — armá el talismán, no hay escape.`);
+            this.registrar(`✦ ${cual}: ${this.guardian.nombre} (${this.guardian.elemento}), nivel ${this.guardian.nivel}. Armá tu talismán con calma — de este no hay huida.`, 'guardian');
         },
 
         /**
@@ -474,19 +505,25 @@ export function game() {
             if (!datos) return;
             this.guardian = null;
             this.aplicarEstado(datos.estado);
-            this.registrar(`⚔ ¡peleás contra ${this.combate.monstruo.nombre}!`);
+            this.registrar(`⚔ Te lanzás contra ${this.combate.monstruo.nombre}. Comienza el duelo.`, 'combate');
         },
 
         // Retirarse del staging sin pelear: el guardián sigue custodiando la llave.
         // No se persiste nada (revelar no abre combate) — se puede volver a intentar.
         retirarseGuardian() {
             this.guardian = null;
-            this.registrar('te retirás — el guardián sigue en su puesto.');
+            this.registrar('Retrocedés en silencio — el guardián sigue custodiando su puesto.', 'sistema');
         },
 
         // ── Consola ────────────────────────────────────────────────────────
-        registrar(txt) {
-            this.consola.push(txt);
+        /**
+         * Empuja una línea a la bitácora de combate. `tipo` es la categoría que la
+         * vista usa para colorear/destacar (sistema, peligro, combate, critico,
+         * bloqueo, arremete, botin, llave, guardian, huida, victoria, derrota,
+         * rechazo). El texto ya viene armado con su ícono de línea si corresponde.
+         */
+        registrar(txt, tipo = 'sistema') {
+            this.consola.push({ txt, tipo });
             if (this.consola.length > 200) this.consola.shift();
         },
 
@@ -589,12 +626,12 @@ export function game() {
                 });
                 const datos = await respuesta.json().catch(() => ({}));
                 if (!respuesta.ok) {
-                    this.registrar(`✗ ${datos.motivo ?? 'rechazado por el servidor'}`);
+                    this.registrar(`✗ ${datos.motivo ?? 'El servidor rechazó la acción.'}`, 'rechazo');
                     return null;
                 }
                 return datos;
             } catch {
-                this.registrar('✗ sin respuesta del servidor');
+                this.registrar('✗ El servidor no respondió. Reintentá.', 'rechazo');
                 return null;
             } finally {
                 this.cargando = false;
@@ -610,7 +647,7 @@ export function game() {
             const bicho = this.combate?.monstruo;
             const datos = await this.pedir(`/jugar/${this.token}/combate`, { accion, gemaId }, `${accion}-${gemaId ?? ''}`);
             if (!datos) return;
-            (datos.log || []).forEach((l) => this.registrar(l.txt));
+            (datos.log || []).forEach((l) => this.registrar(l.txt, l.tipo ?? 'combate'));
             this.aplicarEstado(datos.estado);
             // Huida (030): el combate se cierra pero sin pantalla de resultado —
             // seguís caminando (la colmena queda viva).
@@ -715,7 +752,7 @@ export function game() {
             this.resultado = null;
             this.drop = null;
             this.bichoResuelto = null;
-            this.registrar('— seguís camino —');
+            this.registrar('— Retomás la marcha por el laberinto —', 'sistema');
         },
 
         // ── Derivados de la hoja de personaje ──────────────────────────────
