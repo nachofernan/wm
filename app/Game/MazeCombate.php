@@ -199,7 +199,8 @@ final class MazeCombate
      *     drop: array|null, error: string|null, log: list<array{txt:string,tipo:string}>
      *
      * `tipo` es la categoría de la línea para la bitácora del cliente: 'ataque',
-     * 'critico', 'bloqueo', 'arremete', 'botin', 'llave', 'huida' o 'derrota'.
+     * 'critico', 'bloqueo', 'arremete', 'botin', 'llave', 'huida', 'martir'
+     * (golpe mártir, 034) o 'derrota'.
      * }
      */
     public static function resolver(array $combate, array $talisman, string $accion, ?int $gemaId): array
@@ -245,6 +246,19 @@ final class MazeCombate
             $combate['monstruo']['vida'] = max(0, $combate['monstruo']['vida'] - $r['dano']);
 
             if ($combate['monstruo']['vida'] <= 0) {
+                // Golpe mártir (DECISIÓN 034): si el pago en vida de ESTE mismo golpe
+                // te dejó en 0 pero el golpe igual mató al monstruo, tu acero llega
+                // primero — caés de pie con 1 de vida, no clavado en 0. Entrás al
+                // ataque siempre con vida ≥ 1 (si no, el combate ya habría cerrado en
+                // derrota), y solo la rama de carga insuficiente toca la vida, así que
+                // vida ≤ 0 acá significa exactamente este golpe llevándote al borde.
+                // Fijar la vida ANTES de despachar hace que la regla valga igual para
+                // un bicho de ambiente y para un guardián (victoria → victoriaBoss).
+                if ($talisman['vida'] <= 0) {
+                    $talisman['vida'] = 1;
+                    $log[] = ['txt' => 'Te desangrás con el esfuerzo, pero tu golpe llega primero — caés de pie, con 1 de vida.', 'tipo' => 'martir'];
+                }
+
                 return self::victoria($combate, $talisman, $log);
             }
             if ($talisman['vida'] <= 0) {

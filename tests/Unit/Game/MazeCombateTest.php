@@ -206,6 +206,48 @@ test('un golpe letal mata al monstruo, cierra el combate y dropea una gema', fun
     expect($r['talisman']['gemasJuntadas'])->toBe(count($r['drop']));
 });
 
+test('golpe mártir (034): si el golpe letal te desangra a 0, sobrevivís clavado en 1, no en 0', function () {
+    // Gema descomunal sin carga: castear cuesta nivel × 3 de vida (900), que barre
+    // la vida entera → sin la regla quedarías en 0. Pero el golpe mata al bicho, así
+    // que caés de pie con 1 de vida. La victoria es normal (dropea igual).
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 0, 'fieldeada' => true]);
+    $talisman['vida'] = 40;
+    $combate = MazeCombate::iniciar(1, 0, 0, 'aire', 0, 0); // sílfide N1, muere de un golpe
+
+    $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
+
+    expect($r['resultado'])->toBe('victoria');
+    expect($r['combate'])->toBeNull();
+    expect($r['talisman']['vida'])->toBe(1); // golpe mártir: 1, no 0
+    expect($r['drop'])->toBeArray()->not->toBeEmpty(); // victoria normal: hay botín
+});
+
+test('el golpe mártir vale igual para un guardián: caés en 1 y la llave igual es tuya (034)', function () {
+    // Mismo escenario contra un boss: la regla vive antes del despacho a victoriaBoss,
+    // así que el guardián cae, otorga la llave, y vos quedás en 1 de vida.
+    $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 300, 'carga' => 0, 'fieldeada' => true]);
+    $talisman['vida'] = 40;
+    $combate = MazeCombate::guardian(1, 0, 0, 0); // guardián de llave, índice 0
+
+    $r = MazeCombate::resolver($combate, $talisman, 'atacar', 1);
+
+    expect($r['resultado'])->toBe('victoria');
+    expect($r['llave'])->toBe(0);            // el despacho a boss no se rompe
+    expect($r['talisman']['vida'])->toBe(1); // caés de pie, no en 0
+});
+
+test('una victoria con carga de sobra no dispara el golpe mártir: la vida queda intacta (034)', function () {
+    // Carga sobrada: el golpe no cuesta vida, así que matar al bicho no toca la vida
+    // (no es un "caés en 1": seguís con la que tenías). Control del caso normal.
+    $talisman = talismanConGema(['id' => 99, 'elemento' => 'fuego', 'nivel' => 20, 'carga' => 999, 'fieldeada' => true]);
+    $combate = MazeCombate::iniciar(1, 0, 0, 'aire', 0, 0);
+
+    $r = MazeCombate::resolver($combate, $talisman, 'atacar', 99);
+
+    expect($r['resultado'])->toBe('victoria');
+    expect($r['talisman']['vida'])->toBe(40); // ni rozó la vida
+});
+
 /** Fija un golpe entrante a mano sobre un combate (turno defensa, DECISIÓN 029). */
 function conEntrante(array $combate, string $elemento, int $peso): array
 {
