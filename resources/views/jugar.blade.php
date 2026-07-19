@@ -333,8 +333,8 @@
                         </div>
                         <div class="modelo-stats">
                             <span x-text="`${guardian.vida} ♥`"></span>
-                            <span x-text="`def ${guardian.defensa}`"></span>
-                            <span x-text="`peso ${guardian.peso}`"></span>
+                            <span x-text="`def -${reduccionPct(guardian.defensa)}%`"></span>
+                            <span x-text="`golpe ${guardian.peso}`"></span>
                         </div>
                         <div class="modelo-hint">armá el talismán — al pelear no hay escape</div>
                         <div class="modelo-acciones" style="gap:10px">
@@ -356,8 +356,8 @@
                         <div class="barra-cont"><div class="barra vida" :style="`width:${(combate.monstruo.vida / combate.monstruo.vidaMax) * 100}%`"></div></div>
                         <div class="modelo-stats">
                             <span x-text="`${combate.monstruo.vida}/${combate.monstruo.vidaMax} ♥`"></span>
-                            <span x-text="`def ${combate.monstruo.defensa}`"></span>
-                            <span x-text="`peso ${combate.monstruo.peso}`"></span>
+                            <span x-text="`def -${reduccionPct(combate.monstruo.defensa)}%`"></span>
+                            <span x-text="`golpe ${combate.monstruo.peso}`"></span>
                         </div>
                         <div class="modelo-hint" x-show="combate.turno === 'defensa'">arremete — bloqueá con una gema</div>
                         <!-- Sin escape contra un guardián (032): el botón solo existe

@@ -349,7 +349,7 @@ final class MazeCombate
         $m = $combate['monstruo'];
         $combate['turno'] = 'defensa';
         $combate['entrante'] = ['elemento' => $m['elemento'], 'peso' => $m['peso']];
-        $log[] = ['txt' => "{$m['nombre']} arremete ({$m['elemento']}, peso {$m['peso']}) — bloqueá con una gema o lo pagás con vida.", 'tipo' => 'arremete'];
+        $log[] = ['txt' => "{$m['nombre']} arremete ({$m['elemento']}, golpe {$m['peso']}) — bloqueá con una gema o lo pagás con vida.", 'tipo' => 'arremete'];
 
         return self::estado($combate, $talisman, $log);
     }

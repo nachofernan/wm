@@ -912,6 +912,12 @@ export function game() {
             return g.carga > 0 ? `${g.carga} ⚡ +${vida} ♥` : `${vida} ♥`;
         },
 
+        // % de daño que la defensa reduce (K/(K+defensa) es lo que pasa; esto es el complemento).
+        reduccionPct(defensa) {
+            const mitig = COMBATE.K / (COMBATE.K + defensa);
+            return Math.round((1 - mitig) * 100);
+        },
+
         // Relación de la gema con el monstruo actual, para teñir el botón de ataque.
         matchupAtaque(g) {
             return this.combate ? matchup(g.elemento, this.combate.monstruo.elemento) : 'neutral';
