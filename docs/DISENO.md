@@ -158,9 +158,19 @@ Los **bosses y cofres garantizan gemas importantes** (grandes, fieldeables); los
 comunes sueltan morralla para desguace, con chance baja (~1 en 100) de una gema grande —
 variance como condimento, no como plan.
 
-- ❓ La tabla de drops concreta y su escala por maze.
-- ❓ Si abrir un cofre cuesta algo (turno, riesgo).
-- ❓ Cuántos cofres/monstruos hay y cómo se distribuyen en el laberinto.
+**Distribución de cofres 🔒 (DECISIÓN 035).** Hasta **8 cofres** por laberinto, en las
+**puntas de brazo** (callejones sin salida que cuelgan del camino entrada→salida) más
+largas de TODO el maze: se toman las 8 de mayor extensión `m`, con piso `BRAZO_MINIMO`
+(25) y sin partir por segmento como las llaves. Si hay menos candidatas que cumplan el
+piso, van menos — el número no se fuerza. Se excluyen las celdas ya ocupadas (entrada,
+salida, puertas, llaves). Cada cofre da **una gema garantizada** de nivel 1..7 según la
+profundidad de su celda (mismo eje que escala monstruos, 027/029) y elemento sesgado por
+la rueda como cualquier drop (026). El cofre premia el **desvío**: los brazos largos son
+los que más cuestan ir a buscar, y ahí está el mejor loot. Descartado por ahora (035): un
+boss en el centro de colmena y un cofre-con-ventaja-elemental en el núcleo de colmena.
+
+- ❓ La tabla de drops concreta de monstruos y su escala por maze.
+- ❓ Si abrir un cofre cuesta algo (turno, riesgo). Hoy no cuesta nada (035).
 
 Regla que se mantiene: un drop importa solo si cambia una decisión.
 

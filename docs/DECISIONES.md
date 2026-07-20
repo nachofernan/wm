@@ -961,3 +961,49 @@ celda de salida— dejaría "ganar" tildado desde el limbo). Cliente: la pantall
 la esencia alcanza; el movimiento se congela con `vida ≤ 0` igual que con `terminado`; el costo viaja en
 `estado.revivir` solo en el limbo. El test de `JugarController` que antes asumía `terminado = true` tras una
 derrota cambia: ahora la corrida queda viva.
+
+## 035 — Cofres en las puntas de brazo: hasta 8, top-N global, nivel por profundidad — 2026-07-20
+**Decisión:** El laberinto tiene **hasta 8 cofres**, ubicados en las **puntas de brazo** — los callejones sin
+salida que cuelgan del camino entrada→salida. Reusa la maquinaria de las llaves (`MapaBuilder`, extensión `m` de
+cada celda como brazo colgado del camino), pero en vez de "una punta por segmento" (llaves) toma las **8 puntas
+de mayor `m` de TODO el maze**, sin partir por segmento, con piso `BRAZO_MINIMO` (25). Una punta es un callejón
+sin salida real (una sola celda vecina navegable). Si hay **menos de 8** candidatas que cumplan el piso, van
+menos — el número no se fuerza. Se **excluyen** las celdas ya ocupadas (entrada, salida, puertas, llaves): las
+llaves también son puntas y colisionarían. Desempate determinista y paritario (m desc, y asc, x asc), sin
+depender de la estabilidad del sort de cada lenguaje.
+
+**Nivel de la gema del cofre:** sale de la **profundidad de la celda** vía el eje de `dificultadCelda`
+(`t = distancia a la entrada / total`), escalado a **1..7 con la misma fórmula que el nivel de un monstruo**
+(`round(1 + t·6)`, clampeada, 027/029). Un cofre en el fondo rinde como un bicho del fondo. **Elemento:** se
+sortea al abrir con el **mismo mecanismo que un drop de combate** (`MazeCombate::elementoDrop`, rueda 026): el
+cofre tiene una afinidad elemental derivada del seed (como un guardián) y el botín se sesga hacia ella. La gema
+nace con **carga llena** (nivel × `CARGA_POR_NIVEL`), como el drop de un boss. Abrir un cofre **no cuesta nada**
+hoy (ni turno ni riesgo).
+
+**Por qué:** El cofre premia el **desvío**. Los brazos largos son, por definición, los que más cuesta ir a
+buscar y volver; poner ahí el mejor loot garantizado convierte cada brazo en una **decisión** (¿vale la pena el
+detour por su nivel, sabiendo que ver más es durar menos?) en vez de relleno. Tomar el top-N **global** (y no
+uno por segmento como las llaves) concentra los cofres donde el maze realmente tiene brazos profundos, que es
+donde el desvío se siente. Enganchar el nivel a la profundidad reusa el único eje de dificultad del proyecto
+(027) sin inventar una escala nueva.
+
+**Se evaluó y se descartó (por ahora):** un **boss en el centro de colmena** y un **cofre-con-gema-de-ventaja-
+elemental en el núcleo de colmena**. Se dejan anotados acá para que no reaparezcan como pendiente fantasma: la
+versión que se construyó es el **sistema simple de 8 cofres en brazos**, nada atado a las colmenas. Si más
+adelante se quiere premiar despejar una colmena, es una decisión nueva, no un olvido de esta.
+
+**Arquitectura / paridad:** la **ubicación** de los cofres es función pura del seed y va en `marcas()` (posición
++ nivel), **espejada bit a bit** en `resources/js/mapaBuilder.js` (verificada a mano contra PHP en los 4 seeds
+del vector; el suite Vitest sigue caído por el tooling preexistente —`Cannot read properties of undefined
+(reading 'config')`—, ajeno a esto, así que el lado JS queda ciego por esa vía). El nivel es posición-derivada
+(no secreto: el cliente ya conoce el maze entero, axioma 4), pero el **botín** (elemento + gema) lo tira el
+servidor al abrir y **no viaja en las marcas**. El generador, el PRNG y su test de paridad **no se tocan**.
+
+**Cascada:** `marcas()` gana la clave `cofres`; columna `cofres` en `runs` (índices ya abiertos, patrón de
+`llaves`); endpoint `POST /jugar/{token}/cofre` (valida posición contra el seed, rechaza celda sin cofre / cofre
+ya abierto / en combate / caído); cliente pinta el 📦 **respetando la niebla** (a diferencia de las llaves, que
+son faros: el cofre es loot opcional, solo se ve una vez descubierto) y ofrece un prompt "abrir" no bloqueante.
+
+**Nota de implementación a revisar:** el otorgamiento de la gema fuera de combate (`MazeCombate::abrirCofre`)
+suma a `gemasJuntadas` pero **no** a `bichosCaidos` (no cayó ningún bicho) — se tomó como la lectura más simple
+y consistente del patrón de `victoriaBoss`, no como decisión de diseño.
