@@ -945,12 +945,15 @@ export function game() {
             return Math.max(1, Math.round(poder * mitig * mult * bono));
         },
 
-        // Costo en carga de bloquear el golpe entrante con la gema g (029):
-        // peso × elemento, determinista. Espejo de CombatResolver::costoBloqueo.
+        // Costo en carga de bloquear el golpe entrante con la gema g (029/036):
+        // peso × matchup × mitigación por la defensa del mago (K/(K+defensa), la
+        // misma curva que reduce el daño entrante). Determinista. Espejo de
+        // CombatResolver::costoBloqueo.
         costoBloqueoEstimado(g) {
             if (!this.combate || !this.combate.entrante) return 0;
             const factor = { ventaja: COMBATE.defVentaja, reves: COMBATE.defReves, neutral: COMBATE.defNeutral };
-            return Math.max(1, Math.round(this.combate.entrante.peso * factor[matchup(g.elemento, this.combate.entrante.elemento)]));
+            const mitig = COMBATE.K / (COMBATE.K + (this.talisman ? this.talisman.defensa : 0));
+            return Math.max(1, Math.round(this.combate.entrante.peso * factor[matchup(g.elemento, this.combate.entrante.elemento)] * mitig));
         },
 
         // Etiqueta del bloqueo (029): la carga paga primero; lo que falte va a vida

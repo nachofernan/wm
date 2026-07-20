@@ -1007,3 +1007,43 @@ son faros: el cofre es loot opcional, solo se ve una vez descubierto) y ofrece u
 **Nota de implementación a revisar:** el otorgamiento de la gema fuera de combate (`MazeCombate::abrirCofre`)
 suma a `gemasJuntadas` pero **no** a `bichosCaidos` (no cayó ningún bicho) — se tomó como la lectura más simple
 y consistente del patrón de `victoriaBoss`, no como decisión de diseño.
+
+## 036 — La defensa del mago deja de ser stat muerto: descuenta el costo de bloquear — 2026-07-20
+**Decisión:** La defensa del talismán (`talisman.defensa`, calculada por `Talisman::recomputar` como
+`defensaDeNivel(nivel) + defensaGema` de las gemas agua/tierra fieldeadas) pasa a **descontar el costo en carga
+de bloquear** un golpe entrante. Entra como un **tercer factor multiplicativo** sobre `CombatResolver::costoBloqueo`,
+reusando `mitigacion()` —la MISMA curva `K/(K+defensa)`, K=50, con que el monstruo mitiga el daño que le entra:
+
+`costo = max(1, round(peso × factorMatchup × mitigacion(defensaDelMago)))`
+
+El matchup elemental (×0.5/×1/×2) sigue siendo la **palanca fuerte** que el jugador elige activamente cada golpe;
+la defensa del talismán es un **descuento parejo de fondo** encima, exactamente como el `ataqueMult` es un bono
+parejo de fondo sobre el daño. Con el mago inicial (defensa 26) el factor es `50/76 ≈ 0.66`: bloquear cuesta ~un
+tercio menos, y sube fieldeando gemas agua/tierra. [IMPLEMENTADO en PHP y en el espejo JS
+`costoBloqueoEstimado`.]
+
+**Qué estaba roto:** la defensa era una **stat muerta desde la 029**. La 029 reemplazó el viejo "comer un golpe =
+mitigación directa vía `K/(K+defensa)`" por el bloqueo obligatorio actual, cuyo costo depende del `peso` del
+monstruo y del matchup de la gema — **nunca** de la defensa del talismán. Desde entonces `defensa` se calculaba,
+se mostraba en la ficha del MAGO, y no entraba en ningún cálculo real: el eje defensivo del talismán (agua/tierra)
+no cambiaba ninguna decisión.
+
+**Por qué se reusó la curva existente y no una nueva:** darle a la defensa del mago la **misma forma** que ya
+tiene el ataque — ambos porcentajes, ambos con retornos decrecientes visibles al fieldear gemas — sin agregar una
+tercera curva de tuning al proyecto. `K/(K+defensa)` ya está probada y entendida (es la del monstruo); que la
+defensa del mago "se sienta" igual que su ataque es coherencia, no coincidencia. El descuento va sobre el costo de
+bloquear (no sobre el daño, que ya no existe como número aparte: en la 029 el daño *es* el costo que no cubriste
+con carga), así que reengancha el eje defensivo con el recurso que la 029 puso en el centro: la carga.
+
+**Se descartó:** dejar la defensa como **stat decorativo** (el problema que esta decisión arregla); inventar una
+**curva o constante nueva** para el mago (una tercera palanca de tuning sin ganancia sobre reusar la que ya
+modela mitigación); hacer que la defensa incidiera sobre el matchup en vez de encima de él (borraría la palanca
+fuerte que el jugador elige cada golpe, que es lo que hace interesante el bloqueo).
+
+**Cascada:** firma de `CombatResolver::costoBloqueo` (+`defensaMago`); llamador en `MazeCombate::resolver` (rama
+`bloquear`, pasa `$talisman['defensa']`); espejo JS `costoBloqueoEstimado` (mismo tercer factor con
+`talisman.defensa`); endpoint de tuning `/pj` (reusa el slider `defensa` que ya validaba); tests de
+`CombatResolver` y `MazeCombate` recalculados a mano con la fórmula nueva. El generador, el PRNG y su test de
+paridad **no se tocan**. Pendiente de UI (lo sigue el usuario, no es decisión de economía): la ficha del MAGO hoy
+muestra `talisman.defensa` como número crudo sin `%` — ahora que hace algo real, quizás corresponda darle el
+mismo tratamiento `-X%` que ya tiene el resto.

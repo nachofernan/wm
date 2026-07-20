@@ -133,11 +133,20 @@ final class CombatResolver
 
     /**
      * Costo en esencia de bloquear un golpe entero (bloqueo completo o nada,
-     * DECISIONES.md 012): peso del ataque escalado por el matchup de la gema
-     * que bloquea. Bloquear con el elemento equivocado funde la gema el doble
-     * de rápido.
+     * DECISIONES.md 012): peso del ataque escalado por dos factores. El fuerte,
+     * que el jugador elige activamente cada golpe, es el matchup de la gema que
+     * bloquea (×0.5/×1/×2 — bloquear con el elemento equivocado funde la gema el
+     * doble de rápido). Encima va un descuento parejo de fondo por la defensa del
+     * mago (DECISIONES.md 036): reusa `mitigacion()`, la MISMA curva K/(K+defensa)
+     * con que el monstruo mitiga el daño, para no meter una tercera curva de
+     * tuning y darle a la defensa del talismán la misma forma (%, con retornos
+     * decrecientes) que el `ataqueMult` le da al daño. Antes de la 036 la defensa
+     * del mago era una stat muerta: se calculaba y se mostraba, pero no entraba en
+     * ningún cálculo de combate (huérfana desde la 029).
+     *
+     * costo = max(1, round(peso × factorMatchup × mitigacion(defensaMago)))
      */
-    public function costoBloqueo(int $peso, string $elementoGema, string $elementoAtaque): int
+    public function costoBloqueo(int $peso, string $elementoGema, string $elementoAtaque, int $defensaMago): int
     {
         $factor = match (self::matchup($elementoGema, $elementoAtaque)) {
             'ventaja' => $this->reglas['defVentaja'],
@@ -145,7 +154,7 @@ final class CombatResolver
             default => $this->reglas['defNeutral'],
         };
 
-        return max(1, (int) round($peso * $factor));
+        return max(1, (int) round($peso * $factor * $this->mitigacion($defensaMago)));
     }
 
     /**

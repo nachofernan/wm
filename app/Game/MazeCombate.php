@@ -277,11 +277,13 @@ final class MazeCombate
                 return $error('gema inválida');
             }
             $e = $combate['entrante'];
-            // El costo de bloqueo es determinista (peso × elemento, sin azar): un
-            // recurso a presupuestar, no una tirada. La carga paga primero; lo que
-            // falte se paga con vida ×3, igual que castear una gema seca (029).
+            // El costo de bloqueo es determinista (peso × elemento × defensa del
+            // mago, sin azar): un recurso a presupuestar, no una tirada. La
+            // defensa del talismán lo descuenta con la curva de la 036. La carga
+            // paga primero; lo que falte se paga con vida ×3, igual que castear
+            // una gema seca (029).
             $resolver = new CombatResolver(new Prng(0));
-            $costo = $resolver->costoBloqueo($e['peso'], $g['elemento'], $e['elemento']);
+            $costo = $resolver->costoBloqueo($e['peso'], $g['elemento'], $e['elemento'], $talisman['defensa']);
             $cargaPaga = min($g['carga'], $costo);
             $deficit = $costo - $cargaPaga;
             $costoVida = $resolver->costoVida($deficit);

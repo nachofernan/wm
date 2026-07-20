@@ -58,7 +58,7 @@ Route::post('/pj/combate', function (Request $request) {
     }
 
     return response()->json([
-        'costo' => $resolver->costoBloqueo($datos['peso'], $datos['elementoGema'], $datos['elementoAtaque']),
+        'costo' => $resolver->costoBloqueo($datos['peso'], $datos['elementoGema'], $datos['elementoAtaque'], $datos['defensa'] ?? 0),
     ]);
 });
 

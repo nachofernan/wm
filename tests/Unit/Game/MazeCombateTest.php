@@ -257,23 +257,24 @@ function conEntrante(array $combate, string $elemento, int $peso): array
     return $combate;
 }
 
-test('bloquear con el elemento que le gana y carga de sobra frena el golpe sin tocar la vida (029)', function () {
-    // Golpe tierra peso 4. Bloqueo con aire (aire le gana a tierra → ×0.5) → 2 ⚡.
+test('bloquear con el elemento que le gana y carga de sobra frena el golpe sin tocar la vida (029/036)', function () {
+    // Golpe tierra peso 4. Bloqueo con aire (aire le gana a tierra → ×0.5), con
+    // la defensa 26 del mago inicial descontando: 4 × 0.5 × 50/76 = 1.32 → 1 ⚡.
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'aire', 'nivel' => 4, 'carga' => 10, 'fieldeada' => true]);
     $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
 
     $r = MazeCombate::resolver($combate, $talisman, 'bloquear', 1);
 
     expect($r['error'])->toBeNull();
-    expect($r['talisman']['gemas'][0]['carga'])->toBe(8);  // 10 − 2
+    expect($r['talisman']['gemas'][0]['carga'])->toBe(9);  // 10 − 1
     expect($r['talisman']['vida'])->toBe(40);              // vida intacta
     expect($r['combate']['turno'])->toBe('tuTurno');
     expect($r['combate']['entrante'])->toBeNull();
 });
 
-test('bloquear sin carga para todo gasta la que hay y paga el déficit con vida ×3 (029)', function () {
-    // Golpe tierra peso 4, gema fuego (neutro → ×1 = 4 ⚡) con solo 1 de carga:
-    // paga 1 ⚡ y el déficit 3 va a vida × 3 = 9.
+test('bloquear sin carga para todo gasta la que hay y paga el déficit con vida ×3 (029/036)', function () {
+    // Golpe tierra peso 4, gema fuego (neutro ×1, defensa 26 → 4 × 50/76 = 2.63
+    // → 3 ⚡) con solo 1 de carga: paga 1 ⚡ y el déficit 2 va a vida × 3 = 6.
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'fuego', 'nivel' => 4, 'carga' => 1, 'fieldeada' => true]);
     $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
 
@@ -281,13 +282,13 @@ test('bloquear sin carga para todo gasta la que hay y paga el déficit con vida 
 
     expect($r['error'])->toBeNull();
     expect($r['talisman']['gemas'][0]['carga'])->toBe(0);
-    expect($r['talisman']['vida'])->toBe(40 - 9);
+    expect($r['talisman']['vida'])->toBe(40 - 6);
     expect($r['combate']['turno'])->toBe('tuTurno');
 });
 
-test('bloquear con una gema seca ya no es error: paga todo el golpe con vida (029)', function () {
-    // Golpe tierra peso 4, gema agua seca (agua pierde contra tierra → ×2 = 8 ⚡),
-    // 0 de carga → 8 × 3 = 24 de vida.
+test('bloquear con una gema seca ya no es error: paga todo el golpe con vida (029/036)', function () {
+    // Golpe tierra peso 4, gema agua seca (agua pierde contra tierra ×2, defensa
+    // 26 → 8 × 50/76 = 5.26 → 5 ⚡), 0 de carga → 5 × 3 = 15 de vida.
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
     $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);
 
@@ -295,12 +296,12 @@ test('bloquear con una gema seca ya no es error: paga todo el golpe con vida (02
 
     expect($r['error'])->toBeNull();
     expect($r['talisman']['gemas'][0]['carga'])->toBe(0);
-    expect($r['talisman']['vida'])->toBe(40 - 24);
+    expect($r['talisman']['vida'])->toBe(40 - 15);
     expect($r['combate']['turno'])->toBe('tuTurno');
 });
 
-test('un bloqueo que no alcanza a pagarse con vida termina en derrota (029)', function () {
-    // Vida 5 contra un déficit de 24 → cae.
+test('un bloqueo que no alcanza a pagarse con vida termina en derrota (029/036)', function () {
+    // Vida 5 contra un déficit de 15 → cae.
     $talisman = talismanConGema(['id' => 1, 'elemento' => 'agua', 'nivel' => 4, 'carga' => 0, 'fieldeada' => true]);
     $talisman['vida'] = 5;
     $combate = conEntrante(MazeCombate::iniciar(1, 0, 0, 'tierra', 0, 0), 'tierra', 4);

@@ -44,16 +44,25 @@ test('el daño nunca baja de 1: el alfeñique siempre araña', function () {
 });
 
 test('costo de bloqueo: barato con ventaja, carísimo con el elemento equivocado', function () {
+    // Defensa del mago 0 → mitigacion 50/50 = 1.0: el matchup manda solo.
     // agua vence fuego (ventaja 0.5): peso 2 → 1
-    expect(resolver()->costoBloqueo(2, 'agua', 'fuego'))->toBe(1);
+    expect(resolver()->costoBloqueo(2, 'agua', 'fuego', 0))->toBe(1);
     // fuego contra agua (revés 2.0): peso 2 → 4, funde media gema
-    expect(resolver()->costoBloqueo(2, 'fuego', 'agua'))->toBe(4);
+    expect(resolver()->costoBloqueo(2, 'fuego', 'agua', 0))->toBe(4);
     // neutral (1.0): peso 2 → 2
-    expect(resolver()->costoBloqueo(2, 'tierra', 'fuego'))->toBe(2);
+    expect(resolver()->costoBloqueo(2, 'tierra', 'fuego', 0))->toBe(2);
+});
+
+test('la defensa del mago descuenta el costo de bloquear con la curva K/(K+def) (036)', function () {
+    // Misma curva que mitiga el daño: defensa 50 → mitigacion 50/100 = 0.5.
+    // neutral peso 8 → 8 × 1.0 × 0.5 = 4
+    expect(resolver()->costoBloqueo(8, 'tierra', 'fuego', 50))->toBe(4);
+    // revés peso 8 → 8 × 2.0 × 0.5 = 8 (el descuento no borra el castigo del matchup)
+    expect(resolver()->costoBloqueo(8, 'fuego', 'agua', 50))->toBe(8);
 });
 
 test('el bloqueo nunca cuesta menos de 1 de esencia', function () {
-    expect(resolver()->costoBloqueo(1, 'agua', 'fuego'))->toBe(1); // 1*0.5=0.5 → piso 1
+    expect(resolver()->costoBloqueo(1, 'agua', 'fuego', 0))->toBe(1); // 1*0.5*1.0=0.5 → piso 1
 });
 
 test('cubrir esencia faltante con vida cuesta faltante × penalidad', function () {
