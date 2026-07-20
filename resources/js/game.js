@@ -128,8 +128,8 @@ export function game() {
         // Togglear el dibujo de cofres y de llaves/puertas/salida por separado
         // (puro cliente, no cambia qué sabe el servidor). Sirve para jugar "a
         // ciegas" de objetivos sin perder el resto del HUD.
-        verCofres: true,
-        verObjetivos: true,
+        verCofres: false,
+        verObjetivos: false,
 
         // Estado de personaje y combate — verdad del servidor (axioma 4). El
         // cliente solo renderiza lo que recibe y manda acciones.
