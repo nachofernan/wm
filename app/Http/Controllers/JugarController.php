@@ -146,7 +146,7 @@ class JugarController extends Controller
         }
 
         $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
-        $marcas = MapaBuilder::marcas($matriz);
+        $marcas = MapaBuilder::marcas($matriz, $run->seed);
         $celda = $indice === MazeCombate::INDICE_SALIDA ? $marcas['salida'] : $marcas['llaves'][$indice];
         if ($celda === null || $celda['x'] !== $datos['x'] || $celda['y'] !== $datos['y']) {
             return response()->json(['ok' => false, 'motivo' => 'no es la celda del guardián'], Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -196,7 +196,7 @@ class JugarController extends Controller
         }
 
         $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
-        $cofres = MapaBuilder::marcas($matriz)['cofres'];
+        $cofres = MapaBuilder::marcas($matriz, $run->seed)['cofres'];
 
         $indice = null;
         foreach ($cofres as $i => $c) {
@@ -448,7 +448,7 @@ class JugarController extends Controller
         }
 
         $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
-        $salida = MapaBuilder::marcas($matriz)['salida'];
+        $salida = MapaBuilder::marcas($matriz, $run->seed)['salida'];
 
         if ($salida['x'] !== $datos['x'] || $salida['y'] !== $datos['y']) {
             return response()->json(['legal' => false], Response::HTTP_UNPROCESSABLE_ENTITY);

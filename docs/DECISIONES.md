@@ -1047,3 +1047,50 @@ fuerte que el jugador elige cada golpe, que es lo que hace interesante el bloque
 paridad **no se tocan**. Pendiente de UI (lo sigue el usuario, no es decisión de economía): la ficha del MAGO hoy
 muestra `talisman.defensa` como número crudo sin `%` — ahora que hace algo real, quizás corresponda darle el
 mismo tratamiento `-X%` que ya tiene el resto.
+
+## 037 — Los cofres se reparten por segmento y se sortean con separación mínima — 2026-07-20
+**Decisión:** La ubicación de los cofres deja de ser el **top-8 global por longitud de brazo** (035)
+y pasa a un **reparto por segmento + sorteo determinista + separación mínima** (opción C de la charla).
+Cada punta de brazo elegible (callejón sin salida con `m ≥ BRAZO_MINIMO=25`, no ocupada) se agrupa por su
+**punto de desprendimiento** `k = dInicio - m` en uno de los **tres segmentos** del camino (los mismos que
+cortan las puertas, `PUERTAS_EN=[100,200]`). `MAX_COFRES=8` se reparte lo más parejo posible en orden
+`[seg0, seg1, seg2]` → **3/3/2**; si un segmento no completa su cupo, el faltante se **traslada hacia
+adelante** al siguiente (nunca hacia atrás). Dentro de cada segmento se **sortea sin reemplazo** con un PRNG
+determinista (`new Prng(seed ^ SEMILLA_COFRES)`, `SEMILLA_COFRES=0xC2B2AE35`, mismo patrón de sub-semilla que
+`EncuentroBuilder`), y se descarta toda candidata a menos de `SEPARACION_MINIMA_COFRES` de una **ya aceptada
+de cualquier segmento**, medida como `|dInicio_a - dInicio_b|` (proxy barato de distancia en el árbol,
+consistente con cómo `extensionDesdeCamino` ya usa `dInicio`). Sigue siendo "hasta 8": si la estructura no da,
+van menos. [IMPLEMENTADO en PHP y en el espejo JS `resources/js/mapaBuilder.js`.]
+
+**Qué estaba roto (reportado jugando):** dos problemas reales del top-8 global. (1) **Agrupamiento al final**:
+las ramas más largas caen cerca de la salida, así que el top-8 por `m` metía casi todos los cofres al fondo del
+maze —no había reparto temprano/medio/tardío. (2) **Cofres pegados**: cuando una rama larga se bifurca cerca de
+la punta en varios callejones, esos callejones comparten casi toda la extensión (`m` casi idéntico) y el top-8
+los agarraba a todos juntos, dejando 3 cofres pegados unos a otros.
+
+**El valor de la separación (8):** la propuesta original era 15, pero sobre los 4 seeds de vector fijo daba
+resultados degenerados (3 de 4 seeds con solo 4 cofres); 10 seguía cayendo (4/4/6/7). Se barrió el rango y hay un
+acantilado entre 8 y 10. **8** es el valor más alto que mantiene los 4 seeds en un conteo sano (6/5/7/8) y alcanza
+de sobra para partir las bifurcaciones apretadas: los callejones que comparten casi todo el brazo caen a un puñado
+de unidades de `dInicio` entre sí. Tiene que ser `< BRAZO_MINIMO` (25) para ser alcanzable, y lo es. Reparto 3/3/2
+= `intdiv(8,3)=2` base con los primeros `8%3=2` segmentos +1.
+
+**Se descartó:** (A) **solo un piso de separación** sin reparto por segmento —no arregla el agrupamiento al final,
+que es estructural (dónde caen las ramas largas), no de proximidad; (B) **sorteo global ponderado + separación**
+sin partir por segmento —mitiga el pegado pero no garantiza reparto temprano/medio/tardío. Se eligió (C) porque
+reusa el mecanismo que las **llaves** ya usan (una por segmento) y ataca los dos problemas de raíz.
+
+**Paridad:** el algoritmo de sorteo es **token por token idéntico** en PHP (`MapaBuilder::seleccionarCofres`) y JS
+(`seleccionarCofres` en `mapaBuilder.js`): mismo orden de llamadas a `randBelow`, misma remoción por
+**swap-con-el-último** en O(1), mismo criterio de pool (recorrido `y` asc, `x` asc, sin sort para no depender de su
+estabilidad). Verificado a mano sobre los 4 seeds del vector con un script Node standalone contra el output de PHP
+(Vitest sigue caído por el tooling preexistente, ajeno a esto): output **idéntico** elemento por elemento y en el
+mismo orden. Conteos antes→después: seed 1 8→6, seed 42 7→5, seed 12345 8→7, seed 2026 8→8.
+
+**Cascada:** firma `MapaBuilder::marcas($matriz, $seed)` (necesita el seed para el PRNG) → llamador interno en
+`buscarSeed`, 3 call sites en `JugarController` (`$run->seed`), espejo `marcas(matriz, seed)` en `mapaBuilder.js`
+y su call site en `game.js`; vectores fijos de `cofres` en `MapaBuilderTest.php` y `mapaBuilder.test.js`
+regenerados; feature tests de `/cofre` reapuntados al nuevo índice 0 del seed 42 (28,5). El generador, el PRNG de
+generación del laberinto, las llaves, la apertura de cofres (`MazeCombate::abrirCofre`) y el sorteo de afinidad
+**no se tocan**: solo cambia qué celdas quedan elegidas como cofre. Test de paridad del generador (`maze:hash`)
+sigue en verde.

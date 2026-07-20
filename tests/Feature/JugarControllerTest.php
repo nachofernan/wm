@@ -414,8 +414,8 @@ test('estando caído no se puede salir del laberinto (034)', function () {
     expect($run->fresh()->terminado)->toBeFalse();
 });
 
-// --- Cofres en puntas de brazo (DECISIÓN 035) ---
-// seed 42, 30x30: cofre 0 en (25,18) nivel 7 — ver tests/Unit/Game/MapaBuilderTest.php.
+// --- Cofres en puntas de brazo (DECISIÓN 035, reparto por segmento 037) ---
+// seed 42, 30x30: cofre 0 en (28,5) nivel 6 — ver tests/Unit/Game/MapaBuilderTest.php.
 
 test('abrir un cofre válido otorga la gema, graba el índice y registra el evento (035)', function () {
     $run = Run::create([
@@ -424,16 +424,16 @@ test('abrir un cofre válido otorga la gema, graba el índice y registra el even
     ]);
     $gemasAntes = count($run->talisman['gemas']);
 
-    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 28, 'y' => 5]);
 
     $response->assertOk()->assertJson(['ok' => true]);
-    expect($response->json('drop.nivel'))->toBe(7); // profundidad de (25,18) en seed 42
+    expect($response->json('drop.nivel'))->toBe(6); // profundidad de (28,5) en seed 42
     expect($response->json('drop.elemento'))->toBeIn(['fuego', 'agua', 'tierra', 'aire']);
     $run->refresh();
     expect($run->cofres)->toBe([0]);                              // se grabó el índice
     expect(count($run->talisman['gemas']))->toBe($gemasAntes + 1); // la gema entró al inventario
-    expect($run->pos_x)->toBe(25);
-    expect($run->pos_y)->toBe(18);
+    expect($run->pos_x)->toBe(28);
+    expect($run->pos_y)->toBe(5);
     $evento = Event::where('run_id', $run->id)->where('tipo', 'cofre')->first();
     expect($evento->payload['indice'])->toBe(0);
 });
@@ -457,7 +457,7 @@ test('reabrir un cofre ya abierto es ilegal (035)', function () {
         'talisman' => MazeCombate::talismanInicial(), 'cofres' => [0],
     ]);
 
-    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 28, 'y' => 5]);
 
     $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'cofre ya abierto']);
     expect($run->fresh()->cofres)->toBe([0]); // sin segundo drop
@@ -470,7 +470,7 @@ test('abrir un cofre con un combate abierto es rechazado (035)', function () {
         'combate' => MazeCombate::iniciar(42, 5, 5, 'agua', 11, 0),
     ]);
 
-    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 28, 'y' => 5]);
 
     $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
 });

@@ -158,16 +158,23 @@ Los **bosses y cofres garantizan gemas importantes** (grandes, fieldeables); los
 comunes sueltan morralla para desguace, con chance baja (~1 en 100) de una gema grande —
 variance como condimento, no como plan.
 
-**Distribución de cofres 🔒 (DECISIÓN 035).** Hasta **8 cofres** por laberinto, en las
-**puntas de brazo** (callejones sin salida que cuelgan del camino entrada→salida) más
-largas de TODO el maze: se toman las 8 de mayor extensión `m`, con piso `BRAZO_MINIMO`
-(25) y sin partir por segmento como las llaves. Si hay menos candidatas que cumplan el
-piso, van menos — el número no se fuerza. Se excluyen las celdas ya ocupadas (entrada,
-salida, puertas, llaves). Cada cofre da **una gema garantizada** de nivel 1..7 según la
-profundidad de su celda (mismo eje que escala monstruos, 027/029) y elemento sesgado por
-la rueda como cualquier drop (026). El cofre premia el **desvío**: los brazos largos son
-los que más cuestan ir a buscar, y ahí está el mejor loot. Descartado por ahora (035): un
-boss en el centro de colmena y un cofre-con-ventaja-elemental en el núcleo de colmena.
+**Distribución de cofres 🔒 (DECISIÓN 035, reparto 037).** Hasta **8 cofres** por
+laberinto, en las **puntas de brazo** (callejones sin salida que cuelgan del camino
+entrada→salida) con piso `BRAZO_MINIMO` (25), excluidas las celdas ya ocupadas (entrada,
+salida, puertas, llaves). No es un top-8 global por longitud: eso apelotonaba los cofres al
+fondo del maze (donde caen las ramas más largas) y pegaba varios juntos cuando una rama se
+bifurcaba cerca de la punta. En cambio, cada punta se agrupa por su punto de desprendimiento
+en uno de los **tres segmentos** del camino (los mismos que cortan las puertas) y el cupo de
+8 se reparte parejo **3/3/2** entre ellos —con el faltante de un segmento trasladándose hacia
+adelante—; dentro de cada segmento se **sortea** (PRNG determinista sembrado en el seed) y se
+descarta toda candidata a menos de una **separación mínima** (8, medida en distancia sobre el
+árbol) de otra ya elegida. Así hay cofres tempranos, medios y tardíos, y ningún par pegado.
+Si un segmento no junta candidatas suficientes van menos de 8 — el número no se fuerza. Cada
+cofre da **una gema garantizada** de nivel 1..7 según la profundidad de su celda (mismo eje
+que escala monstruos, 027/029) y elemento sesgado por la rueda como cualquier drop (026). El
+cofre premia el **desvío**: los brazos largos son los que más cuestan ir a buscar, y ahí está
+el mejor loot. Descartado por ahora (035): un boss en el centro de colmena y un
+cofre-con-ventaja-elemental en el núcleo de colmena.
 
 - ❓ La tabla de drops concreta de monstruos y su escala por maze.
 - ❓ Si abrir un cofre cuesta algo (turno, riesgo). Hoy no cuesta nada (035).

@@ -168,7 +168,7 @@ export function game() {
             if (this.muerto()) this.resultado = 'derrota';
             this.registrar('Cruzás el umbral. El laberinto se cierra a tu espalda — WASD o flechas para avanzar.', 'sistema');
             this.matriz = generarLaberinto(seed, ancho, alto);
-            this.marcas = calcularMarcas(this.matriz);
+            this.marcas = calcularMarcas(this.matriz, seed);
             this.distancias = distanciasEntrada(this.matriz); // panel de celda (027)
             this.campo = calcularCampo(seed, ancho, alto);
             this.ancho = ancho;

@@ -31,15 +31,38 @@ final class MapaBuilder
     public const BRAZO_MINIMO = 25;
 
     /**
-     * Tope de cofres por laberinto (DECISIÓN 035): se colocan hasta esta cantidad
-     * en las puntas de brazo más largas. Si hay menos candidatas que cumplan
-     * BRAZO_MINIMO, van menos — el número no se fuerza.
+     * Tope de cofres por laberinto (DECISIÓN 035): se colocan hasta esta cantidad,
+     * repartidos por segmento del camino (DECISIÓN 037). Si un segmento no junta
+     * candidatas suficientes van menos — el número no se fuerza.
      */
     public const MAX_COFRES = 8;
 
     /**
+     * Stream propio del PRNG para el sorteo de cofres (DECISIÓN 037), decorrelado
+     * del que usan MazeGenerator y EncuentroBuilder (seed XOR esta constante).
+     * Idéntico en PHP y JS o la paridad se rompe. Mismo patrón que
+     * EncuentroBuilder::SEMILLA.
+     */
+    public const SEMILLA_COFRES = 0xC2B2AE35;
+
+    /**
+     * Separación mínima entre dos cofres, medida como |dInicio_a - dInicio_b|
+     * (proxy barato de distancia en el árbol del laberinto, consistente con cómo
+     * extensionDesdeCamino ya usa dInicio). Evita que una bifurcación cerca de la
+     * punta de una rama larga deje 3 cofres pegados (DECISIÓN 037): los callejones
+     * que comparten casi todo el brazo caen a un puñado de unidades de dInicio entre
+     * sí, así que 8 alcanza para partirlos. Se probó 15 (propuesta original) y 10 y
+     * ambos degeneraban el conteo (3 de 4 seeds fijos con solo 4 cofres); 8 es el
+     * valor más alto que mantiene los 4 seeds en 5..8 cofres. < BRAZO_MINIMO (25).
+     */
+    public const SEPARACION_MINIMA_COFRES = 8;
+
+    /**
      * Calcula entrada, salida, puertas, llaves y cofres para una matriz ya
      * generada. No valida las restricciones de diseño — eso lo hace esValido().
+     *
+     * El $seed alimenta el PRNG del sorteo de cofres (DECISIÓN 037); no toca el
+     * resto de las marcas, que son función pura de la topología.
      *
      * @param  list<list<array{N:int,E:int,S:int,O:int}>>  $matriz
      * @return array{
@@ -50,7 +73,7 @@ final class MapaBuilder
      *     cofres: list<array{x:int,y:int,nivel:int}>,
      * }
      */
-    public static function marcas(array $matriz): array
+    public static function marcas(array $matriz, int $seed): array
     {
         $distanciasInicio = self::distancias($matriz, 0, 0);
         $salida = self::celdaMasLejana($distanciasInicio);
@@ -80,7 +103,7 @@ final class MapaBuilder
             'salida' => $salida,
             'puertas' => $puertas,
             'llaves' => $llaves,
-            'cofres' => self::ubicarCofres($matriz, $distanciasInicio, $distanciasSalida, $salida['distancia'], $ocupadas),
+            'cofres' => self::ubicarCofres($matriz, $distanciasInicio, $distanciasSalida, $salida['distancia'], $ocupadas, $seed),
         ];
     }
 
@@ -152,7 +175,7 @@ final class MapaBuilder
         do {
             $seed = random_int(0, self::SEED_MAX);
             $matriz = MazeGenerator::generar($seed, $ancho, $alto);
-            $marcas = self::marcas($matriz);
+            $marcas = self::marcas($matriz, $seed);
         } while (! self::esValido($marcas));
 
         return ['seed' => $seed, 'marcas' => $marcas];
@@ -294,13 +317,22 @@ final class MapaBuilder
     }
 
     /**
-     * Ubica hasta MAX_COFRES cofres en las puntas de brazo más largas de TODO el
-     * laberinto (DECISIÓN 035). A diferencia de las llaves (una punta por segmento),
-     * acá se toma el top-N global por extensión `m`, sin partir por tramo. Una
-     * "punta de brazo" es un callejón sin salida (una sola celda navegable
-     * adyacente) que cuelga del camino con m ≥ BRAZO_MINIMO — el mismo piso que las
-     * llaves. Se excluyen las celdas ya ocupadas (entrada, salida, puertas, llaves):
-     * las llaves también son puntas y colisionarían.
+     * Ubica hasta MAX_COFRES cofres en las puntas de brazo del laberinto, repartidos
+     * por segmento del camino y sorteados (DECISIÓN 037, reemplaza el top-N global de
+     * la 035). Una "punta de brazo" es un callejón sin salida (una sola celda
+     * navegable adyacente) que cuelga del camino con m ≥ BRAZO_MINIMO — el mismo piso
+     * que las llaves. Se excluyen las celdas ya ocupadas (entrada, salida, puertas,
+     * llaves): las llaves también son puntas y colisionarían.
+     *
+     * El reparto imita a las llaves (una por segmento) pero repartiendo el cupo de 8:
+     * cada candidata se agrupa por su punto de desprendimiento k = dInicio - m en su
+     * segmento (0..2, cortado por PUERTAS_EN), MAX_COFRES se reparte lo más parejo
+     * posible en orden [seg0, seg1, seg2] (3/3/2), y el faltante de un segmento se
+     * traslada hacia adelante. Dentro de cada segmento se sortea sin reemplazo con un
+     * PRNG determinista sembrado en seed ^ SEMILLA_COFRES, descartando toda candidata
+     * a menos de SEPARACION_MINIMA_COFRES de una ya aceptada (de cualquier segmento).
+     * Así los cofres no se apelotonan al fondo del maze ni se pegan entre sí cuando
+     * una rama larga se bifurca cerca de la punta.
      *
      * El nivel de la gema del cofre sale de la profundidad de la celda (nivelCofre),
      * el mismo eje 0..1 → 1..7 que escala monstruos y drops (027/029). Es posición
@@ -313,12 +345,16 @@ final class MapaBuilder
      * @param  array<string,bool>  $ocupadas  celdas "x,y" vedadas para un cofre
      * @return list<array{x:int,y:int,nivel:int}>
      */
-    private static function ubicarCofres(array $matriz, array $distanciasInicio, array $distanciasSalida, int $total, array $ocupadas): array
+    private static function ubicarCofres(array $matriz, array $distanciasInicio, array $distanciasSalida, int $total, array $ocupadas, int $seed): array
     {
         $ancho = count($matriz[0]);
         $alto = count($matriz);
+        $numSeg = count(self::PUERTAS_EN) + 1;
 
-        $candidatos = [];
+        // Candidatas agrupadas por segmento, en orden de recorrido (y asc, luego
+        // x asc): así el pool de cada segmento es determinístico e idéntico en PHP y
+        // JS sin depender de la estabilidad de ningún sort.
+        $pools = array_fill(0, $numSeg, []);
         foreach ($distanciasInicio as $y => $fila) {
             foreach ($fila as $x => $dInicio) {
                 if ($dInicio < 0) {
@@ -334,19 +370,73 @@ final class MapaBuilder
                 if (isset($ocupadas["$x,$y"])) {
                     continue; // ya hay una llave/puerta/entrada/salida acá
                 }
-                $candidatos[] = ['x' => $x, 'y' => $y, 'm' => (int) $m, 'nivel' => self::nivelCofre($dInicio, $total)];
+                $k = $dInicio - $m;
+                $seg = self::segmentoDe($k, self::PUERTAS_EN);
+                $pools[$seg][] = [
+                    'x' => $x,
+                    'y' => $y,
+                    'dInicio' => $dInicio,
+                    'nivel' => self::nivelCofre($dInicio, $total),
+                ];
             }
         }
 
-        // Top-N por m; desempate determinista y paritario (y asc, luego x asc). El
-        // recorrido ya fue en orden de fila, pero el orden total explícito no depende
-        // de la estabilidad del sort de cada lenguaje.
-        usort($candidatos, fn ($a, $b) => $b['m'] <=> $a['m'] ?: $a['y'] <=> $b['y'] ?: $a['x'] <=> $b['x']);
+        // Cupo por segmento, lo más parejo posible en orden [seg0..]; los primeros
+        // `resto` segmentos reciben +1 (MAX_COFRES=8, 3 segmentos → 3/3/2).
+        $base = intdiv(self::MAX_COFRES, $numSeg);
+        $resto = self::MAX_COFRES % $numSeg;
+
+        $prng = new Prng($seed ^ self::SEMILLA_COFRES);
+        $aceptados = [];
+        $carry = 0; // faltante de un segmento que se traslada al siguiente
+        for ($seg = 0; $seg < $numSeg; $seg++) {
+            $cupo = $base + ($seg < $resto ? 1 : 0) + $carry;
+            $elegidos = self::seleccionarCofres($pools[$seg], $cupo, $aceptados, $prng);
+            $carry = $cupo - $elegidos;
+        }
 
         return array_map(
             fn ($c) => ['x' => $c['x'], 'y' => $c['y'], 'nivel' => $c['nivel']],
-            array_slice($candidatos, 0, self::MAX_COFRES),
+            $aceptados,
         );
+    }
+
+    /**
+     * Sorteo sin reemplazo de hasta $cupo cofres de un pool, respetando la
+     * separación mínima contra TODOS los ya aceptados (DECISIÓN 037). Muta
+     * $aceptados agregando cada cofre elegido y devuelve cuántos aceptó.
+     *
+     * El algoritmo es token-por-token idéntico al de mapaBuilder.js (mismo orden de
+     * llamadas a randBelow, mismo swap-con-el-último para remover en O(1)): cualquier
+     * divergencia desincroniza el stream del PRNG y rompe la paridad. Una candidata
+     * descartada por separación NO vuelve al pool.
+     *
+     * @param  list<array{x:int,y:int,dInicio:int,nivel:int}>  $pool
+     * @param  list<array{x:int,y:int,dInicio:int,nivel:int}>  $aceptados
+     */
+    private static function seleccionarCofres(array $pool, int $cupo, array &$aceptados, Prng $prng): int
+    {
+        $elegidos = 0;
+        while ($elegidos < $cupo && count($pool) > 0) {
+            $i = $prng->randBelow(count($pool));
+            $cand = $pool[$i];
+            $pool[$i] = $pool[count($pool) - 1];
+            array_pop($pool);
+
+            $ok = true;
+            foreach ($aceptados as $a) {
+                if (abs($cand['dInicio'] - $a['dInicio']) < self::SEPARACION_MINIMA_COFRES) {
+                    $ok = false;
+                    break;
+                }
+            }
+            if ($ok) {
+                $aceptados[] = $cand;
+                $elegidos++;
+            }
+        }
+
+        return $elegidos;
     }
 
     /** Cuántas celdas vecinas navegables tiene (x,y): 1 = punta / callejón sin salida. */
