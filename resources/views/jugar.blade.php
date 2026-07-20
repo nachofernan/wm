@@ -215,6 +215,16 @@
             border: 1px solid var(--vida); border-radius: 12px; padding: 16px 16px 14px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
         }
+        /* Prompt del cofre (035): loot opcional, no bloqueante. Anclado abajo para
+           no tapar el mapa — se puede caminar y desaparece al salir de la celda. */
+        .cofre-flotante {
+            position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 10px;
+            background: rgba(30, 18, 40, 0.94); border: 1px solid #7c4d9e;
+            border-radius: 10px; padding: 8px 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
+            font-size: 13px;
+        }
+        .cofre-flotante .etq { color: #d9b8f0; }
         /* Maqueta de "modelo" del bicho: el marco donde mañana va una imagen. */
         .modelo { text-align: center; }
         .modelo-fig {
@@ -456,6 +466,13 @@
                         </div>
                     </div>
                 </template>
+            </div>
+
+            <!-- Cofre bajo el mago (035): prompt no bloqueante. cofreAqui() ya se anula
+                 con un combate/staging/derrota abierta o estando caído. -->
+            <div class="cofre-flotante" x-show="cofreAqui()" x-cloak>
+                <span class="etq">📦 Cofre · gema garantizada <span x-text="`N${cofreAqui()?.nivel ?? ''}`"></span></span>
+                <button class="primario" @click="abrirCofre()" :class="{ enviando: accionActiva === 'cofre' }" :disabled="cargando">abrir</button>
             </div>
         </div>
 

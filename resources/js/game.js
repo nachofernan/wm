@@ -22,6 +22,7 @@ const COLOR_MARCA = {
     puertaCerrada: 'gold',
     puertaAbierta: 'deepskyblue',
     llave: 'orange',
+    cofre: '#7c4d9e', // violeta de tesoro: no compite con el dorado de las llaves/puertas
 };
 
 // Rueda elemental — espejo de CombatResolver::VENCE_A (PLACEHOLDER, docs/DISENO.md §3):
@@ -106,6 +107,7 @@ export function game() {
         visitadas: {}, // celdas ya pisadas ("x,y" → true): se dibujan en gris bajo la niebla
         puertasAbiertas: [],
         llavesRecogidas: [],
+        cofresAbiertos: [], // índices de marcas.cofres ya vaciados (verdad del servidor, 035)
         salidaAbierta: false,
         terminado: false,
         movimientos: [],
@@ -176,6 +178,7 @@ export function game() {
             // ya conseguidos. Cada llave i abre la puerta i; la que sobra (índice =
             // cantidad de puertas) abre la salida.
             this.sincronizarLlaves(estado.llaves || []);
+            this.cofresAbiertos = estado.cofres || []; // cofres ya vaciados (035)
             // Recupera dónde estabas y qué exploraste: sin esto la recarga te
             // devuelve a la entrada (la posición no vive en el servidor).
             this.restaurarNavegacion();
@@ -357,6 +360,16 @@ export function game() {
                     icono(l, '🔑');
                 }
             });
+
+            // Los cofres son loot opcional, no un objetivo señalizado como las llaves
+            // (035): NO son faros. Solo se pintan si ya los descubriste — bajo la niebla
+            // dura (visible en la cruz de ejes, o ya pisado) — igual que las paredes.
+            this.marcas.cofres.forEach((c, i) => {
+                if (this.cofresAbiertos.includes(i)) return; // vaciado: ya no está
+                if (!this.visible(c.x, c.y) && !this.visitadas[`${c.x},${c.y}`]) return; // sin descubrir
+                pintar(c, COLOR_MARCA.cofre);
+                icono(c, '📦');
+            });
         },
 
         buscarPuerta(x, y) {
@@ -365,6 +378,10 @@ export function game() {
 
         buscarLlave(x, y) {
             return this.marcas.llaves.findIndex((l) => l.x === x && l.y === y);
+        },
+
+        buscarCofre(x, y) {
+            return this.marcas.cofres.findIndex((c) => c.x === x && c.y === y);
         },
 
         esSalida(x, y) {
@@ -387,6 +404,7 @@ export function game() {
             if (this.esSalida(x, y)) return 'salida';
             if (this.buscarPuerta(x, y) !== -1) return 'puerta';
             if (this.buscarLlave(x, y) !== -1) return 'llave';
+            if (this.buscarCofre(x, y) !== -1) return 'cofre';
             if (this.esColmena(x, y)) return 'colmena';
             return 'normal';
         },
@@ -524,6 +542,38 @@ export function game() {
             this.registrar('Retrocedés en silencio — el guardián sigue custodiando su puesto.', 'sistema');
         },
 
+        // ── Cofres (docs/DECISIONES.md 035) ────────────────────────────────
+        /**
+         * El cofre sin abrir sobre el que está parado el mago (o null). Loot opcional,
+         * no bloquea la marcha: parado encima aparece el botón "abrir". Se anula si hay
+         * un combate/staging/pantalla abierta o si estás caído, para no ofrecer la
+         * acción cuando el servidor la rechazaría igual. El nivel viene en la marca.
+         */
+        cofreAqui() {
+            if (this.combate || this.guardian || this.resultado || this.terminado || this.muerto()) return null;
+            if (!this.marcas) return null;
+            const i = this.buscarCofre(this.mago.x, this.mago.y);
+            if (i === -1 || this.cofresAbiertos.includes(i)) return null;
+            return { indice: i, ...this.marcas.cofres[i] };
+        },
+
+        /**
+         * Abre el cofre de la celda actual: sube (x,y) al servidor, que valida contra
+         * el seed, tira el botín (autoridad, axioma 4) y otorga la gema. El elemento
+         * de la gema recién se conoce acá (el servidor lo sorteó); el nivel ya estaba
+         * en la marca. Redibuja para que el cofre vaciado desaparezca del mapa.
+         */
+        async abrirCofre() {
+            const c = this.cofreAqui();
+            if (!c) return;
+            const datos = await this.pedir(`/jugar/${this.token}/cofre`, { x: c.x, y: c.y }, 'cofre');
+            if (!datos) return;
+            this.aplicarEstado(datos.estado);
+            const d = datos.drop;
+            this.registrar(`📦 Abrís el cofre en (${c.x},${c.y}) y hallás ${d.elemento} nv.${d.nivel} → al inventario.`, 'botin');
+            this.dibujar();
+        },
+
         // ── Consola ────────────────────────────────────────────────────────
         /**
          * Empuja una línea a la bitácora de combate. `tipo` es la categoría que la
@@ -541,6 +591,7 @@ export function game() {
             this.talisman = estado.talisman;
             this.combate = estado.combate;
             this.revivirCosto = estado.revivir ? estado.revivir.costo : null;
+            if (estado.cofres) this.cofresAbiertos = estado.cofres; // cofres ya vaciados (035)
             // Las llaves las manda el servidor (032). Redibujo solo si cambió alguna
             // (una puerta que se abre), no en cada acción de combate.
             if (estado.llaves && this.sincronizarLlaves(estado.llaves)) this.dibujar();
