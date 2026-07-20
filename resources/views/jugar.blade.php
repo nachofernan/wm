@@ -56,7 +56,11 @@
         .barra { height: 100%; transition: width 0.2s; }
         .barra.vida { background: var(--vida); } .barra.poder { background: var(--poder); } .barra.esencia { background: var(--esencia); }
         .valor { font-size: 12px; color: var(--tenue); }
-        .cfg-toggle { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--texto); cursor: pointer; user-select: none; margin-top: 4px; }
+        /* Grilla 2×2: los 4 toggles entran en la misma altura que la consola (160px)
+           sin desbordar la página. El texto completo de cada uno queda de tooltip
+           (title) para no perder claridad por acortar la etiqueta visible. */
+        .cfg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; }
+        .cfg-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--texto); cursor: pointer; user-select: none; white-space: nowrap; }
         .cfg-toggle input { cursor: pointer; margin: 0; }
         /* El toggle de colmenas solo aplica con las paredes ocultas; sin eso, se atenúa. */
         .cfg-toggle.inactivo { opacity: 0.45; cursor: default; }
@@ -260,7 +264,11 @@
         .mini-btn.recarga { color: var(--esencia); }
         .mini-btn.recarga:disabled { color: var(--tenue); opacity: 0.5; }
         .inv-vacio { color: var(--tenue); font-size: 13px; font-style: italic; padding: 6px 2px; }
-        .pie { display: flex; gap: 16px; padding: 0 16px 16px; }
+        /* flex-start (no el stretch por defecto): la consola tiene altura fija
+           (160px, para su propio scroll de log) y la caja de configuración no
+           tiene por qué quedar recortada a esa misma altura — crece con su
+           contenido. */
+        .pie { display: flex; align-items: flex-start; gap: 16px; padding: 0 16px 16px; }
         .consola {
             flex: 1; background: #0d0c11; border: 1px solid var(--linea);
             border-radius: 8px; padding: 10px 14px;
@@ -298,7 +306,7 @@
         }
         /* Mismo ancho que la columna del inventario (360px): la card queda alineada
            justo debajo, y la consola ocupa el ancho del mapa + columna izquierda. */
-        .caja.juego { width: 360px; flex-shrink: 0; }
+        .caja.juego { width: 360px; flex-shrink: 0; height: 160px;}
         /* Inventario: la card crece con la columna (stretch) y solo la lista
            interna scrollea, no la card entera. */
         .inv-caja { display: flex; flex-direction: column; flex: 1; min-height: 0; }
@@ -645,16 +653,28 @@
         </div>
         <div class="caja juego">
             <h2>configuración</h2>
-            <label class="cfg-toggle">
-                <input type="checkbox" x-model="caminoOpaco" @change="aplicarCfg()">
-                <span>ocultar paredes del camino explorado</span>
-            </label>
-            <label class="cfg-toggle" :class="{ inactivo: !caminoOpaco }">
-                <input type="checkbox" x-model="verColmenas" @change="aplicarCfg()" :disabled="!caminoOpaco">
-                <span>ver colmenas en el camino gris</span>
-            </label>
-            <div class="valor" style="margin-top:10px">seed: <span x-text="seed"></span></div>
-            <a href="{{ route('jugar.crear') }}" style="display:inline-block;margin-top:6px"><button>nueva partida</button></a>
+            <div class="cfg-grid">
+                <label class="cfg-toggle" title="ocultar paredes del camino explorado">
+                    <input type="checkbox" x-model="caminoOpaco" @change="aplicarCfg()">
+                    <span>ocultar paredes</span>
+                </label>
+                <label class="cfg-toggle" :class="{ inactivo: !caminoOpaco }" title="ver colmenas en el camino gris">
+                    <input type="checkbox" x-model="verColmenas" @change="aplicarCfg()" :disabled="!caminoOpaco">
+                    <span>ver colmenas</span>
+                </label>
+                <label class="cfg-toggle">
+                    <input type="checkbox" x-model="verCofres" @change="aplicarCfg()">
+                    <span>ver cofres</span>
+                </label>
+                <label class="cfg-toggle" title="ver llaves, puertas y salida">
+                    <input type="checkbox" x-model="verObjetivos" @change="aplicarCfg()">
+                    <span>ver objetivos</span>
+                </label>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px">
+                <div class="valor">seed: <span x-text="seed"></span></div>
+                <a href="{{ route('jugar.crear') }}"><button>nueva partida</button></a>
+            </div>
         </div>
     </div>
     </div>

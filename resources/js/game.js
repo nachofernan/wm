@@ -125,6 +125,12 @@ export function game() {
         // con caminoOpaco (sin él, el velo translúcido ya deja ver el tinte).
         verColmenas: true,
 
+        // Togglear el dibujo de cofres y de llaves/puertas/salida por separado
+        // (puro cliente, no cambia qué sabe el servidor). Sirve para jugar "a
+        // ciegas" de objetivos sin perder el resto del HUD.
+        verCofres: true,
+        verObjetivos: true,
+
         // Estado de personaje y combate — verdad del servidor (axioma 4). El
         // cliente solo renderiza lo que recibe y manda acciones.
         talisman: null,
@@ -347,26 +353,42 @@ export function game() {
             };
 
             pintar(this.marcas.entrada, COLOR_MARCA.entrada);
-            pintar(this.marcas.salida, this.salidaAbierta ? COLOR_MARCA.salidaAbierta : COLOR_MARCA.salidaCerrada);
+
+            // Salida/puertas/llaves son faros por diseño (032): se ven desde el
+            // arranque aunque no las hayas explorado. Lo que ya está bajo la vista
+            // del mago o ya se visitó SIEMPRE se dibuja — el toggle no tapa lo que
+            // tenés adelante. verObjetivos es un cheat de esta etapa de desarrollo
+            // que solo actúa sobre la niebla dura (lo nunca visto): en ON adelanta
+            // el faro completo, como ya era; en OFF, se atiene a lo descubierto.
+            const objetivoVisible = ({ x, y }) => this.verObjetivos || this.visible(x, y) || this.visitadas[`${x},${y}`];
+
+            if (objetivoVisible(this.marcas.salida)) {
+                pintar(this.marcas.salida, this.salidaAbierta ? COLOR_MARCA.salidaAbierta : COLOR_MARCA.salidaCerrada);
+            }
 
             this.marcas.puertas.forEach((p, i) => {
+                if (!objetivoVisible(p)) return;
                 pintar(p, this.puertasAbiertas[i] ? COLOR_MARCA.puertaAbierta : COLOR_MARCA.puertaCerrada);
                 if (!this.puertasAbiertas[i]) icono(p, '🔒');
             });
 
             this.marcas.llaves.forEach((l, i) => {
-                if (!this.llavesRecogidas[i]) {
-                    pintar(l, COLOR_MARCA.llave);
-                    icono(l, '🔑');
-                }
+                if (this.llavesRecogidas[i] || !objetivoVisible(l)) return;
+                pintar(l, COLOR_MARCA.llave);
+                icono(l, '🔑');
             });
 
             // Los cofres son loot opcional, no un objetivo señalizado como las llaves
-            // (035): NO son faros. Solo se pintan si ya los descubriste — bajo la niebla
-            // dura (visible en la cruz de ejes, o ya pisado) — igual que las paredes.
+            // (035): por diseño de juego NO son faros, se descubren explorando. Lo
+            // que ya está bajo la vista del mago o ya se visitó SIEMPRE se dibuja —
+            // el toggle no tapa lo que tenés adelante. verCofres es un cheat de esta
+            // etapa de desarrollo que solo actúa sobre la niebla dura (lo nunca
+            // visto): con el toggle en ON se adelanta esa revelación sin tener que
+            // jugar la partida entera; en OFF, la niebla se comporta normal.
             this.marcas.cofres.forEach((c, i) => {
                 if (this.cofresAbiertos.includes(i)) return; // vaciado: ya no está
-                if (!this.visible(c.x, c.y) && !this.visitadas[`${c.x},${c.y}`]) return; // sin descubrir
+                const descubierto = this.visible(c.x, c.y) || this.visitadas[`${c.x},${c.y}`];
+                if (!descubierto && !this.verCofres) return; // niebla dura sin el cheat
                 pintar(c, COLOR_MARCA.cofre);
                 icono(c, '📦');
             });
@@ -655,6 +677,10 @@ export function game() {
                 if (opaco !== null) this.caminoOpaco = opaco === '1';
                 const colm = localStorage.getItem('wm_cfg_verColmenas');
                 if (colm !== null) this.verColmenas = colm === '1';
+                const cofres = localStorage.getItem('wm_cfg_verCofres');
+                if (cofres !== null) this.verCofres = cofres === '1';
+                const obj = localStorage.getItem('wm_cfg_verObjetivos');
+                if (obj !== null) this.verObjetivos = obj === '1';
             } catch { /* storage deshabilitado: se usan los defaults */ }
         },
 
@@ -663,6 +689,8 @@ export function game() {
             try {
                 localStorage.setItem('wm_cfg_caminoOpaco', this.caminoOpaco ? '1' : '0');
                 localStorage.setItem('wm_cfg_verColmenas', this.verColmenas ? '1' : '0');
+                localStorage.setItem('wm_cfg_verCofres', this.verCofres ? '1' : '0');
+                localStorage.setItem('wm_cfg_verObjetivos', this.verObjetivos ? '1' : '0');
             } catch { /* nada */ }
             this.dibujar();
         },
