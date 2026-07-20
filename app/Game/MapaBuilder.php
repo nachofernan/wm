@@ -31,6 +31,18 @@ final class MapaBuilder
     public const BRAZO_MINIMO = 25;
 
     /**
+     * Piso de extensión de brazo para que una punta califique como CANDIDATA a cofre
+     * (DECISIÓN 038). Separado de BRAZO_MINIMO (25, que siguen usando las llaves): un
+     * cofre exigía meterse 25+ celdas dentro de un callejón, algo que nadie hace
+     * corriendo hacia la salida, así que en la práctica los cofres eran invisibles.
+     * Con 1, cualquier callejón sin salida cuenta —hasta uno de una sola celda—, así
+     * un desvío corto de 2-3 celdas ya premia con un cofre. Sigue exigiendo pasajes()===1
+     * (una punta real), no una celda de paso: el cofre se ENCUENTRA explorando un desvío,
+     * no aparece en medio de un pasillo.
+     */
+    public const BRAZO_MINIMO_COFRE = 1;
+
+    /**
      * Tope de cofres por laberinto (DECISIÓN 035): se colocan hasta esta cantidad,
      * repartidos por segmento del camino (DECISIÓN 037). Si un segmento no junta
      * candidatas suficientes van menos — el número no se fuerza.
@@ -51,9 +63,13 @@ final class MapaBuilder
      * extensionDesdeCamino ya usa dInicio). Evita que una bifurcación cerca de la
      * punta de una rama larga deje 3 cofres pegados (DECISIÓN 037): los callejones
      * que comparten casi todo el brazo caen a un puñado de unidades de dInicio entre
-     * sí, así que 8 alcanza para partirlos. Se probó 15 (propuesta original) y 10 y
-     * ambos degeneraban el conteo (3 de 4 seeds fijos con solo 4 cofres); 8 es el
-     * valor más alto que mantiene los 4 seeds en 5..8 cofres. < BRAZO_MINIMO (25).
+     * sí, así que 8 alcanza para partirlos.
+     *
+     * Se mantiene en 8 tras bajar BRAZO_MINIMO_COFRE a 1 (DECISIÓN 038): con el pool
+     * de candidatas mucho más denso (85..100 puntas por seed vs 8..39 antes), la
+     * separación dejó de gatear el conteo —los 4 seeds fijos llegan al tope de 8 con
+     * cualquier valor de 4 a 25—, así que 8 no degenera nada y sigue cumpliendo su
+     * único trabajo restante: garantizar un piso de espaciado entre cofres aceptados.
      */
     public const SEPARACION_MINIMA_COFRES = 8;
 
@@ -320,9 +336,12 @@ final class MapaBuilder
      * Ubica hasta MAX_COFRES cofres en las puntas de brazo del laberinto, repartidos
      * por segmento del camino y sorteados (DECISIÓN 037, reemplaza el top-N global de
      * la 035). Una "punta de brazo" es un callejón sin salida (una sola celda
-     * navegable adyacente) que cuelga del camino con m ≥ BRAZO_MINIMO — el mismo piso
-     * que las llaves. Se excluyen las celdas ya ocupadas (entrada, salida, puertas,
-     * llaves): las llaves también son puntas y colisionarían.
+     * navegable adyacente) que cuelga del camino con m ≥ BRAZO_MINIMO_COFRE — un piso
+     * de 1 (DECISIÓN 038), separado del de las llaves (BRAZO_MINIMO=25): cualquier
+     * callejón corto califica, así el cofre se encuentra con un desvío de 2-3 celdas y
+     * no exige meterse 25+ adentro de una rama (donde nadie los veía). Se excluyen las
+     * celdas ya ocupadas (entrada, salida, puertas, llaves): las llaves también son
+     * puntas y colisionarían.
      *
      * El reparto imita a las llaves (una por segmento) pero repartiendo el cupo de 8:
      * cada candidata se agrupa por su punto de desprendimiento k = dInicio - m en su
@@ -361,7 +380,7 @@ final class MapaBuilder
                     continue; // inalcanzable (no pasa en un árbol conexo, pero por las dudas)
                 }
                 $m = self::extensionDesdeCamino($dInicio, $distanciasSalida[$y][$x], $total);
-                if ($m < self::BRAZO_MINIMO) {
+                if ($m < self::BRAZO_MINIMO_COFRE) {
                     continue; // brazo demasiado corto (también descarta el camino, m=0)
                 }
                 if (self::pasajes($matriz, $x, $y, $ancho, $alto) !== 1) {

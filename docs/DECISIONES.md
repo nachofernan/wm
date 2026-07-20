@@ -1094,3 +1094,51 @@ regenerados; feature tests de `/cofre` reapuntados al nuevo índice 0 del seed 4
 generación del laberinto, las llaves, la apertura de cofres (`MazeCombate::abrirCofre`) y el sorteo de afinidad
 **no se tocan**: solo cambia qué celdas quedan elegidas como cofre. Test de paridad del generador (`maze:hash`)
 sigue en verde.
+
+## 038 — El piso de brazo de los cofres baja a 1: eran invisibles en una partida real — 2026-07-20
+**Decisión:** Se separa el piso de longitud de brazo de los cofres del de las llaves. Nueva constante
+`MapaBuilder::BRAZO_MINIMO_COFRE = 1` (espejada en `mapaBuilder.js`), usada solo en el filtro de candidatas de
+`ubicarCofres`; `BRAZO_MINIMO` (25) queda intacta y la siguen usando las llaves. Antes un cofre exigía que su
+punta midiera `m ≥ 25` (el mismo piso que las llaves); ahora **cualquier callejón sin salida cuenta**, hasta uno
+de una sola celda. Se **mantiene** la exigencia `pasajes()===1` (tiene que ser una punta real, no una celda de un
+pasillo de paso): el cambio es cuán largo tiene que ser el brazo, no qué tipo de celda. Todo lo demás de la 037
+—reparto por segmento 3/3/2 con carry, sorteo sin reemplazo con `Prng::randBelow` + swap-remove sembrado en
+`seed ^ SEMILLA_COFRES`, separación mínima, `nivelCofre`— queda igual. [IMPLEMENTADO en PHP y en el espejo JS.]
+
+**Qué estaba roto (reportado jugando):** una partida completa (235 pasos, seed 3570946782) sin ver **ni un cofre**.
+Verificado con tinker: los 8 cofres estaban colocados y bien repartidos en profundidad (niveles 2 a 7), pero todos
+exigían meterse **25+ celdas dentro de un callejón sin salida** — algo que nadie hace corriendo hacia la salida. Y
+como los cofres no son faros (035: solo se dibujan si ya los descubriste), en la práctica eran **invisibles**. El
+piso de 25 tenía sentido para las llaves (una llave está en el brazo más largo de su segmento, es un objetivo de
+exploración deliberada), pero para los cofres —que son premio por desviarse, no un objetivo obligatorio— convertía
+"cofre" en "cosa que existe pero nunca ves".
+
+**La comparación que motivó el cambio:** las **colmenas** (`EncuentroBuilder::sortearNucleos`) sí se "sienten"
+porque son un **campo de probabilidad sobre el mapa entero**, no un objeto atado a una celda específica muy adentro
+de un callejón. Un cofre en la punta de un brazo de 25 es lo opuesto: máxima especificidad, mínima chance de cruzártelo.
+Se le ofrecieron al usuario dos opciones: **(A)** sortear sobre cualquier celda navegable, incluido el camino
+principal (el cofre deja de premiar el desvío); **(B)** mantenerlos en brazos laterales (fuera del camino, siguen
+siendo "algo que encontrás explorando") pero **sin el piso de 25**, así un desvío corto de 2-3 celdas ya califica.
+Eligió **B**: el cofre sigue siendo un premio por salirse del camino, solo que el desvío ahora es corto y frecuente
+en vez de largo y raro.
+
+**La separación mínima (se queda en 8):** con `BRAZO_MINIMO_COFRE=1` el pool de candidatas por seed salta de
+**8..39 puntas** (piso 25) a **85..100 puntas**. Se barrió `SEPARACION_MINIMA_COFRES` sobre los 4 seeds fijos: con el
+pool denso, **todos los seeds llegan al tope de 8 cofres con cualquier valor de 4 a 25** — la separación dejó de
+gatear el conteo (en la 037, con el pool ralo, era el 8 el que evitaba que degenerara a 4). Ya no hay acantilado que
+esquivar. Se mantiene **8**: no degenera nada (los 4 seeds dan 8, ni trivial-vacío ni degenerado) y sigue cumpliendo
+su único trabajo restante, garantizar un piso de espaciado entre cofres aceptados para que dos callejones de una
+misma bifurcación no caigan pegados. Subirla no cambiaría el conteo hasta valores absurdos; no hay razón para
+tocarla. Conteos de cofres por seed **antes (037) → después (038):** seed 1 6→8, seed 42 5→8, seed 12345 7→8,
+seed 2026 8→8.
+
+**Paridad:** verificada a mano con un script Node standalone (Vitest sigue caído por el tooling preexistente, ajeno
+a esto) que corre el espejo JS sobre los 4 seeds del vector y compara contra el output de PHP: **idéntico** elemento
+por elemento y en el mismo orden, 8 cofres por seed. El sorteo no cambió de algoritmo, solo entra más gente al pool.
+
+**Cascada:** filtro de candidatas en `MapaBuilder::ubicarCofres` (+ espejo JS); vectores fijos de `cofres` en
+`MapaBuilderTest.php` y `mapaBuilder.test.js` regenerados; el assert de `m ≥ BRAZO_MINIMO` del test de determinismo
+reapuntado a `BRAZO_MINIMO_COFRE`; feature tests de `/cofre` reapuntados al nuevo índice 0 del seed 42, que pasó de
+**(28,5) nivel 6** a **(9,4) nivel 2**. El generador, el PRNG, las llaves (`BRAZO_MINIMO` sigue en 25), las puertas,
+la salida, la apertura de cofres (`MazeCombate::abrirCofre`), la afinidad elemental y `EncuentroBuilder`/colmenas
+**no se tocan**. Test de paridad del generador (`maze:hash`) sigue en verde.

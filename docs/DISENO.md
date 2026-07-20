@@ -158,10 +158,12 @@ Los **bosses y cofres garantizan gemas importantes** (grandes, fieldeables); los
 comunes sueltan morralla para desguace, con chance baja (~1 en 100) de una gema grande —
 variance como condimento, no como plan.
 
-**Distribución de cofres 🔒 (DECISIÓN 035, reparto 037).** Hasta **8 cofres** por
-laberinto, en las **puntas de brazo** (callejones sin salida que cuelgan del camino
-entrada→salida) con piso `BRAZO_MINIMO` (25), excluidas las celdas ya ocupadas (entrada,
-salida, puertas, llaves). No es un top-8 global por longitud: eso apelotonaba los cofres al
+**Distribución de cofres 🔒 (DECISIÓN 035, reparto 037, piso de brazo 038).** Hasta
+**8 cofres** por laberinto, en las **puntas de brazo** (callejones sin salida que cuelgan
+del camino entrada→salida) con piso `BRAZO_MINIMO_COFRE` (**1** desde la 038: cualquier
+callejón corto cuenta, para que el cofre se encuentre con un desvío de 2-3 celdas y no
+exija meterse 25+ adentro de una rama, donde nadie los veía), excluidas las celdas ya
+ocupadas (entrada, salida, puertas, llaves). No es un top-8 global por longitud: eso apelotonaba los cofres al
 fondo del maze (donde caen las ramas más largas) y pegaba varios juntos cuando una rama se
 bifurcaba cerca de la punta. En cambio, cada punta se agrupa por su punto de desprendimiento
 en uno de los **tres segmentos** del camino (los mismos que cortan las puertas) y el cupo de
@@ -172,9 +174,10 @@ descarta toda candidata a menos de una **separación mínima** (8, medida en dis
 Si un segmento no junta candidatas suficientes van menos de 8 — el número no se fuerza. Cada
 cofre da **una gema garantizada** de nivel 1..7 según la profundidad de su celda (mismo eje
 que escala monstruos, 027/029) y elemento sesgado por la rueda como cualquier drop (026). El
-cofre premia el **desvío**: los brazos largos son los que más cuestan ir a buscar, y ahí está
-el mejor loot. Descartado por ahora (035): un boss en el centro de colmena y un
-cofre-con-ventaja-elemental en el núcleo de colmena.
+cofre premia el **desvío**: cuesta salirse del camino a la salida para ir a buscarlo, y el
+nivel del loot escala con lo hondo que estés en el maze (no con el largo del brazo). Descartado
+por ahora (035): un boss en el centro de colmena y un cofre-con-ventaja-elemental en el
+núcleo de colmena.
 
 - ❓ La tabla de drops concreta de monstruos y su escala por maze.
 - ❓ Si abrir un cofre cuesta algo (turno, riesgo). Hoy no cuesta nada (035).

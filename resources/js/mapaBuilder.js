@@ -25,6 +25,13 @@ export const PUERTAS_EN = [100, 200];
 /** Cada llave tiene que estar en un brazo de al menos esta extensión. */
 export const BRAZO_MINIMO = 25;
 
+// Piso de brazo para que una punta califique como CANDIDATA a cofre (DECISIÓN 038),
+// separado de BRAZO_MINIMO (25, que siguen usando las llaves). Con 1, cualquier
+// callejón sin salida cuenta —hasta uno de una sola celda—: el cofre se encuentra
+// con un desvío corto, no exige meterse 25+ celdas adentro de una rama. Sigue
+// exigiendo pasajes()===1 (una punta real). Espejo de MapaBuilder::BRAZO_MINIMO_COFRE.
+export const BRAZO_MINIMO_COFRE = 1;
+
 /** Tope de cofres por laberinto (DECISIÓN 035): repartido por segmento (037). */
 export const MAX_COFRES = 8;
 
@@ -35,8 +42,10 @@ const SEMILLA_COFRES = 0xc2b2ae35;
 
 // Separación mínima entre dos cofres, medida como |dInicio_a - dInicio_b| (proxy
 // de distancia en el árbol del laberinto). Evita cofres pegados de una misma
-// bifurcación (DECISIÓN 037). 8 es el valor más alto que mantiene sanos los
-// conteos de los seeds fijos (15 y 10 degeneraban). < BRAZO_MINIMO.
+// bifurcación (DECISIÓN 037). Se mantiene en 8 tras bajar BRAZO_MINIMO_COFRE a 1
+// (DECISIÓN 038): con el pool de candidatas mucho más denso ya no gatea el conteo
+// (los seeds fijos llegan al tope de 8 con cualquier valor de 4 a 25), solo garantiza
+// el piso de espaciado. Espejo de MapaBuilder::SEPARACION_MINIMA_COFRES.
 const SEPARACION_MINIMA_COFRES = 8;
 
 // BFS sobre el grafo del laberinto (paredes abiertas), no distancia euclidiana
@@ -171,7 +180,7 @@ function ubicarCofres(matriz, distanciasInicio, distanciasSalida, total, ocupada
         fila.forEach((dInicio, x) => {
             if (dInicio < 0) return;
             const m = extensionDesdeCamino(dInicio, distanciasSalida[y][x], total);
-            if (m < BRAZO_MINIMO) return; // brazo corto (también descarta el camino, m=0)
+            if (m < BRAZO_MINIMO_COFRE) return; // brazo corto (también descarta el camino, m=0)
             if (pasajes(matriz, x, y, ancho, alto) !== 1) return; // no es una punta
             if (ocupadas.has(`${x},${y}`)) return; // llave/puerta/entrada/salida
             const k = dInicio - m;
