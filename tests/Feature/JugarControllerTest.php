@@ -414,6 +414,67 @@ test('estando caído no se puede salir del laberinto (034)', function () {
     expect($run->fresh()->terminado)->toBeFalse();
 });
 
+// --- Cofres en puntas de brazo (DECISIÓN 035) ---
+// seed 42, 30x30: cofre 0 en (25,18) nivel 7 — ver tests/Unit/Game/MapaBuilderTest.php.
+
+test('abrir un cofre válido otorga la gema, graba el índice y registra el evento (035)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+    $gemasAntes = count($run->talisman['gemas']);
+
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+
+    $response->assertOk()->assertJson(['ok' => true]);
+    expect($response->json('drop.nivel'))->toBe(7); // profundidad de (25,18) en seed 42
+    expect($response->json('drop.elemento'))->toBeIn(['fuego', 'agua', 'tierra', 'aire']);
+    $run->refresh();
+    expect($run->cofres)->toBe([0]);                              // se grabó el índice
+    expect(count($run->talisman['gemas']))->toBe($gemasAntes + 1); // la gema entró al inventario
+    expect($run->pos_x)->toBe(25);
+    expect($run->pos_y)->toBe(18);
+    $evento = Event::where('run_id', $run->id)->where('tipo', 'cofre')->first();
+    expect($evento->payload['indice'])->toBe(0);
+});
+
+test('abrir un cofre en una celda sin cofre es ilegal (035)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 0, 'y' => 0]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'no hay cofre acá']);
+    expect($run->fresh()->cofres ?? [])->toBe([]);
+    expect(Event::where('run_id', $run->id)->exists())->toBeFalse();
+});
+
+test('reabrir un cofre ya abierto es ilegal (035)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(), 'cofres' => [0],
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'cofre ya abierto']);
+    expect($run->fresh()->cofres)->toBe([0]); // sin segundo drop
+});
+
+test('abrir un cofre con un combate abierto es rechazado (035)', function () {
+    $run = Run::create([
+        'token' => 'abc123', 'seed' => 42, 'ancho' => 30, 'alto' => 30,
+        'talisman' => MazeCombate::talismanInicial(),
+        'combate' => MazeCombate::iniciar(42, 5, 5, 'agua', 11, 0),
+    ]);
+
+    $response = $this->postJson("/jugar/{$run->token}/cofre", ['x' => 25, 'y' => 18]);
+
+    $response->assertStatus(422)->assertJson(['ok' => false, 'motivo' => 'en combate']);
+});
+
 test('revivir tras perder contra un guardián lo devuelve a vida completa, sin llave (034)', function () {
     // Caído en la celda del guardián de la primera llave (seed 42 → (11,1)), sin
     // llaves. Revivo y vuelvo a abrir el guardián: MazeCombate::guardian lo

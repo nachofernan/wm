@@ -166,6 +166,65 @@ class JugarController extends Controller
     }
 
     /**
+     * Abre un cofre en la celda que el cliente reporta (DECISIÓN 035). El cofre es
+     * loot garantizado en una punta de brazo; la posición se valida contra el seed
+     * (axioma 4): la celda tiene que ser una de las de marcas().cofres, y no puede
+     * estar ya abierta. El botín (nivel + elemento) lo tira MazeCombate::abrirCofre
+     * en el servidor —el nivel sale de la marca, el elemento de una semilla que el
+     * cliente no ve— y la gema se otorga al talismán. El índice del cofre se graba
+     * en `runs.cofres` (append-only vía evento `cofre`).
+     */
+    public function cofre(Request $request, string $token): JsonResponse
+    {
+        $run = Run::where('token', $token)->firstOrFail();
+
+        $datos = $request->validate([
+            'x' => 'required|integer|min:0',
+            'y' => 'required|integer|min:0',
+        ]);
+
+        if ($run->terminado) {
+            return response()->json(['ok' => false, 'motivo' => 'terminada'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($run->combate !== null) {
+            return response()->json(['ok' => false, 'motivo' => 'en combate'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        // Caído (034): con vida ≤ 0 la corrida está en el limbo, no se abre nada
+        // hasta revivir o aceptar la derrota.
+        if (($run->talisman['vida'] ?? 1) <= 0) {
+            return response()->json(['ok' => false, 'motivo' => 'estás caído'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $matriz = MazeGenerator::generar($run->seed, $run->ancho, $run->alto);
+        $cofres = MapaBuilder::marcas($matriz)['cofres'];
+
+        $indice = null;
+        foreach ($cofres as $i => $c) {
+            if ($c['x'] === $datos['x'] && $c['y'] === $datos['y']) {
+                $indice = $i;
+                break;
+            }
+        }
+        if ($indice === null) {
+            return response()->json(['ok' => false, 'motivo' => 'no hay cofre acá'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if (in_array($indice, $run->cofres ?? [], true)) {
+            return response()->json(['ok' => false, 'motivo' => 'cofre ya abierto'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $res = MazeCombate::abrirCofre($run->seed, $datos['x'], $datos['y'], $cofres[$indice]['nivel'], $run->talisman);
+
+        $run->talisman = $res['talisman'];
+        $run->cofres = array_values(array_unique([...($run->cofres ?? []), $indice]));
+        $run->pos_x = $datos['x'];
+        $run->pos_y = $datos['y'];
+        $run->events()->create(['tipo' => 'cofre', 'payload' => ['indice' => $indice, 'drop' => $res['drop']]]);
+        $run->save();
+
+        return response()->json(['ok' => true, 'drop' => $res['drop'], 'estado' => $this->estado($run)]);
+    }
+
+    /**
      * Resuelve una acción del combate activo (docs/DECISIONES.md 018). Toda la
      * verdad de combate vive en el servidor (axioma 4): el cliente manda la
      * acción y recibe el estado nuevo. La resolución la hace MazeCombate con
@@ -357,6 +416,7 @@ class JugarController extends Controller
             'talisman' => $run->talisman,
             'combate' => $combate,
             'llaves' => $run->llaves ?? [],
+            'cofres' => $run->cofres ?? [],
             'revivir' => $revivir,
         ];
     }
